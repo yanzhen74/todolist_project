@@ -19,6 +19,11 @@ A simple and elegant TodoList web application built with Flask, featuring SQLite
 - ✅ Production-ready setup
 - ✅ Comprehensive end-to-end testing
 - ✅ Security-enhanced HTTP methods (POST for delete/toggle operations)
+- ✅ Periodic todo items with customizable recurrence
+- ✅ Multiple recurrence types: daily, weekly, monthly, yearly, hourly, minutely
+- ✅ Weekly recurrence with specific day selection
+- ✅ Automatic next occurrence calculation when marking as complete
+- ✅ Visible recurrence information in todo list
 
 ## Tech Stack
 
@@ -176,21 +181,40 @@ You can still override configuration using environment variables, which take pre
 
 ## Usage
 
-1. **Add a todo item with deadline**
+1. **Add a regular todo item with deadline**
    - Enter the task in the input field
    - Set a deadline using the datetime picker (default: current time + 24 hours)
    - Click "Add" button
 
-2. **Mark as completed/pending**
-   - Click the checkbox next to the todo item
+2. **Add a periodic todo item**
+   - Enter the task in the input field
+   - Set a deadline using the datetime picker (default: current time + 24 hours)
+   - Check the "周期" (Periodic) checkbox to enable recurrence settings
+   - Select the recurrence type from the dropdown menu:
+     - **每n年** (Every n years)
+     - **每n月** (Every n months)
+     - **每n周** (Every n weeks) - select specific days of the week
+     - **每n日** (Every n days)
+     - **每n小时** (Every n hours)
+     - **每n分钟** (Every n minutes)
+   - Set the recurrence interval (number of units between occurrences)
+   - Click "Add" button
 
-3. **Delete a todo item**
+3. **Mark as completed/pending**
+   - For regular todos: Click the checkbox to toggle between completed and pending
+   - For periodic todos: Click the checkbox to mark the current occurrence as completed; the todo will automatically update to the next occurrence
+
+4. **Delete a todo item**
    - Click the "Delete" button next to the todo item
 
-4. **Deadline status indicators**
+5. **Deadline status indicators**
    - 🟢 **Normal**: Deadline is more than 24 hours away
    - 🟠 **Upcoming**: Deadline is within the next 24 hours
    - 🔴 **Overdue**: Deadline has passed
+
+6. **Periodic todo indicators**
+   - Periodic todos display their recurrence pattern next to the deadline
+   - Example: "每3天" (Every 3 days), "每2周 一、三、五" (Every 2 weeks on Monday, Wednesday, Friday)
 
 ## Testing
 
@@ -219,14 +243,21 @@ The test suite covers:
 - ✅ Empty state display
 - ✅ Deadline default value
 - ✅ Deadline status display
+- ✅ Periodic settings UI interaction
+- ✅ Adding daily periodic todos
+- ✅ Adding weekly periodic todos
+- ✅ Adding monthly periodic todos
+- ✅ Marking periodic todos complete and verifying automatic update to next occurrence
 
 ## Database Migration
 
 The application automatically handles database migrations:
 
-- When starting the application, it checks if the `deadline` column exists in the `todos` table
-- If the column is missing, it automatically adds it with a default value of current time + 24 hours
+- When starting the application, it checks if all required columns exist in the `todos` table
+- If the `deadline` column is missing, it automatically adds it with a default value of current time + 24 hours
+- If periodic-related columns (`is_recurring`, `recurrence_type`, `recurrence_interval`, `recurrence_days`) are missing, they are automatically added with default values
 - This ensures backward compatibility with existing databases
+- No manual database migration steps are required
 
 ## Database Schema
 
@@ -235,7 +266,11 @@ CREATE TABLE IF NOT EXISTS todos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
     completed INTEGER DEFAULT 0,
-    deadline DATETIME DEFAULT (DATETIME('now', '+24 hours'))
+    deadline DATETIME DEFAULT (DATETIME('now', '+24 hours')),
+    is_recurring INTEGER DEFAULT 0,
+    recurrence_type TEXT DEFAULT '',
+    recurrence_interval INTEGER DEFAULT 1,
+    recurrence_days TEXT DEFAULT '[]'
 );
 ```
 

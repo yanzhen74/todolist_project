@@ -44,3 +44,6 @@ dist/
 .coverage
 htmlcov/
 .coveragerc
+
+# Trae AI files
+.trae/

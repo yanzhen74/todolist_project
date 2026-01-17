@@ -164,6 +164,69 @@
             color: #888;
             font-style: italic;
         }
+        
+        /* 周期设置样式 */
+        .recurrence-section {
+            margin-top: 10px;
+        }
+        
+        .recurrence-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .recurrence-row {
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .recurrence-days {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 5px;
+        }
+        
+        .recurrence-days label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+        }
+        
+        .recurrence-settings {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        /* 周期事项列表显示 */
+        .todo-item.recurring {
+            border-left: 4px solid #3498db;
+        }
+        
+        .todo-recurrence {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 0.25rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .todo-recurrence::before {
+            content: '🔄';
+        }
+        
+        .todo-next-occurrence {
+            font-size: 0.8rem;
+            color: #27ae60;
+            margin-top: 0.25rem;
+        }
     </style>
 </head>
 <body>
@@ -176,13 +239,59 @@
                 <label for="deadline">截止时间：</label>
                 <input type="datetime-local" id="deadline" name="deadline" required>
             </div>
+            
+            <!-- 周期设置 -->
+            <div class="recurrence-section">
+                <div class="recurrence-toggle">
+                    <input type="checkbox" id="is_recurring" name="is_recurring">
+                    <label for="is_recurring">设置为周期事项</label>
+                </div>
+                
+                <div class="recurrence-settings" style="display: none; margin-left: 20px; margin-top: 10px;">
+                    <div class="recurrence-row">
+                        <label for="recurrence_type">周期类型：</label>
+                        <select id="recurrence_type" name="recurrence_type">
+                            <option value="yearly">每n年</option>
+                            <option value="monthly">每n月</option>
+                            <option value="daily">每n日</option>
+                            <option value="hourly">每n小时</option>
+                            <option value="minutely">每n分钟</option>
+                            <option value="weekly" selected>每周n</option>
+                        </select>
+                    </div>
+                    
+                    <div class="recurrence-row">
+                        <label for="recurrence_interval">周期间隔：</label>
+                        <input type="number" id="recurrence_interval" name="recurrence_interval" min="1" value="1">
+                        <span id="interval-unit">周</span>
+                    </div>
+                    
+                    <!-- 每周特定日选择 -->
+                    <div class="recurrence-days-section" style="margin-top: 10px;">
+                        <label>每周特定日：</label>
+                        <div class="recurrence-days">
+                            <label><input type="checkbox" name="recurrence_days" value="0">周一</label>
+                            <label><input type="checkbox" name="recurrence_days" value="1">周二</label>
+                            <label><input type="checkbox" name="recurrence_days" value="2">周三</label>
+                            <label><input type="checkbox" name="recurrence_days" value="3">周四</label>
+                            <label><input type="checkbox" name="recurrence_days" value="4">周五</label>
+                            <label><input type="checkbox" name="recurrence_days" value="5">周六</label>
+                            <label><input type="checkbox" name="recurrence_days" value="6">周日</label>
+                        </div>
+                    </div>
+                    
+                    <!-- 隐藏的字段，用于存储选中的每周特定日（JSON格式） -->
+                    <input type="hidden" id="recurrence_days_json" name="recurrence_days">
+                </div>
+            </div>
+            
             <button type="submit">添加</button>
         </form>
         
         <ul class="todo-list">
             {% if todos %}
                 {% for todo in todos %}
-                <li class="todo-item {% if todo[2] %}completed{% endif %}">
+                <li class="todo-item {% if todo[2] %}completed{% endif %} {% if todo[4] %}recurring{% endif %}">
                     <form action="/toggle/{{ todo[0] }}" method="post" class="toggle-form" style="display: inline;">
                         <input type="checkbox" class="todo-checkbox" {% if todo[2] %}checked{% endif %}>
                     </form>
@@ -191,6 +300,18 @@
                         <span class="todo-deadline" data-deadline="{{ todo[3] }}">
                             截止时间：{{ todo[3] }}
                         </span>
+                        
+                        <!-- 显示周期信息 -->
+                        {% if todo[4] %}
+                        <span class="todo-recurrence">
+                            {{ '每' }}{{ todo[6] }}{% if todo[5] == 'yearly' %}年{% elif todo[5] == 'monthly' %}月{% elif todo[5] == 'daily' %}日{% elif todo[5] == 'hourly' %}小时{% elif todo[5] == 'minutely' %}分钟{% elif todo[5] == 'weekly' %}周{% endif %}{% if todo[5] == 'weekly' and todo[7] %}{% set days = todo[7]|fromjson %}{% if days %}{% for day in days %}{% if day == 0 %}一{% elif day == 1 %}二{% elif day == 2 %}三{% elif day == 3 %}四{% elif day == 4 %}五{% elif day == 5 %}六{% elif day == 6 %}日{% endif %}{% endfor %}{% endif %}{% endif %}
+                        </span>
+                        {% if todo[8] %}
+                        <span class="todo-next-occurrence">
+                            下次：{{ todo[8] }}
+                        </span>
+                        {% endif %}
+                        {% endif %}
                     </div>
                     <div class="todo-actions">
                         <form action="/delete/{{ todo[0] }}" method="post" style="display: inline;">
@@ -280,6 +401,69 @@
                     e.preventDefault();
                 }
             });
+        });
+        
+        // 周期设置动态交互
+        document.addEventListener('DOMContentLoaded', function() {
+            // 1. 周期切换显示/隐藏
+            const isRecurringCheckbox = document.getElementById('is_recurring');
+            const recurrenceSettings = document.querySelector('.recurrence-settings');
+            
+            isRecurringCheckbox.addEventListener('change', function() {
+                if (this.checked) {
+                    recurrenceSettings.style.display = 'block';
+                } else {
+                    recurrenceSettings.style.display = 'none';
+                }
+            });
+            
+            // 2. 周期类型变化，更新单位
+            const recurrenceTypeSelect = document.getElementById('recurrence_type');
+            const intervalUnit = document.getElementById('interval-unit');
+            const recurrenceDaysSection = document.querySelector('.recurrence-days-section');
+            
+            // 单位映射
+            const unitMap = {
+                'yearly': '年',
+                'monthly': '月',
+                'daily': '日',
+                'hourly': '小时',
+                'minutely': '分钟',
+                'weekly': '周'
+            };
+            
+            recurrenceTypeSelect.addEventListener('change', function() {
+                const selectedType = this.value;
+                intervalUnit.textContent = unitMap[selectedType];
+                
+                // 显示/隐藏每周特定日选择
+                if (selectedType === 'weekly') {
+                    recurrenceDaysSection.style.display = 'block';
+                } else {
+                    recurrenceDaysSection.style.display = 'none';
+                }
+            });
+            
+            // 3. 表单提交前，处理每周特定日选择
+            const addForm = document.querySelector('.add-form');
+            const recurrenceDaysJson = document.getElementById('recurrence_days_json');
+            
+            addForm.addEventListener('submit', function(e) {
+                // 获取所有选中的星期几
+                const selectedDays = Array.from(
+                    document.querySelectorAll('input[name="recurrence_days"]:checked')
+                ).map(checkbox => parseInt(checkbox.value));
+                
+                // 转换为JSON字符串
+                recurrenceDaysJson.value = JSON.stringify(selectedDays);
+            });
+            
+            // 初始加载时，根据选中的周期类型更新UI
+            const initialType = recurrenceTypeSelect.value;
+            intervalUnit.textContent = unitMap[initialType];
+            if (initialType !== 'weekly') {
+                recurrenceDaysSection.style.display = 'none';
+            }
         });
     </script>
 </body>
