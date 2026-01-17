@@ -17,11 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 修复了每周周期待办事项添加报错问题
 - 修复了`test_add_monthly_recurring_todo`测试用例
 - 修复了`test_deadline_status_display`测试用例的StaleElementReferenceException问题
+- 修复了`test_add_todo_item`测试用例，确保能正确找到添加的待办事项
+- 修复了`test_mark_todo_complete`测试用例，添加了测试前清空现有待办事项的代码
 
 ### Changed
 - 更新了数据库架构，添加了周期相关字段
 - 完善了README文档，添加了周期功能说明
 - 改进了测试覆盖，添加了周期功能相关测试
+- 优化了所有测试用例，添加了测试前清空现有待办事项的代码，确保测试环境干净
+- 改进了测试用例的稳定性，添加了更详细的调试信息和更可靠的元素查找逻辑
 
 ## [1.1.0] - 2026-01-17
 

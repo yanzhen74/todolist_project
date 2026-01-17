@@ -304,7 +304,24 @@
                         <!-- 显示周期信息 -->
                         {% if todo[4] %}
                         <span class="todo-recurrence">
-                            {{ '每' }}{{ todo[6] }}{% if todo[5] == 'yearly' %}年{% elif todo[5] == 'monthly' %}月{% elif todo[5] == 'daily' %}日{% elif todo[5] == 'hourly' %}小时{% elif todo[5] == 'minutely' %}分钟{% elif todo[5] == 'weekly' %}周{% endif %}{% if todo[5] == 'weekly' and todo[7] %}{% set days = todo[7]|fromjson %}{% if days %}{% for day in days %}{% if day == 0 %}一{% elif day == 1 %}二{% elif day == 2 %}三{% elif day == 3 %}四{% elif day == 4 %}五{% elif day == 5 %}六{% elif day == 6 %}日{% endif %}{% endfor %}{% endif %}{% endif %}
+                            {{ '每' }}{{ todo[6] }}{% if todo[5] == 'yearly' %}年{% elif todo[5] == 'monthly' %}月{% elif todo[5] == 'daily' %}日{% elif todo[5] == 'hourly' %}小时{% elif todo[5] == 'minutely' %}分钟{% elif todo[5] == 'weekly' %}周{% endif %}
+                            {% if todo[5] == 'weekly' and todo[7] %}
+                                {% set days = [] %}
+                                {% if todo[7] %}
+                                    {% if todo[7] is string %}
+                                        {% set days = todo[7]|fromjson %}
+                                    {% elif todo[7] is iterable and todo[7] is not string %}
+                                        {% set days = todo[7] %}
+                                    {% else %}
+                                        {% set days = [todo[7]] %}
+                                    {% endif %}
+                                {% endif %}
+                                {% if days %}
+                                    {% for day in days %}
+                                        {% if day == 0 %}一{% elif day == 1 %}二{% elif day == 2 %}三{% elif day == 3 %}四{% elif day == 4 %}五{% elif day == 5 %}六{% elif day == 6 %}日{% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                            {% endif %}
                         </span>
                         {% if todo[8] %}
                         <span class="todo-next-occurrence">
