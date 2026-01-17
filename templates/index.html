@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TodoList</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 2rem auto;
+            padding: 1.5rem;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 1.5rem;
+        }
+        
+        .add-form {
+            display: flex;
+            margin-bottom: 1.5rem;
+            gap: 0.5rem;
+        }
+        
+        .add-form input {
+            flex: 1;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        
+        .add-form button {
+            padding: 0.75rem 1.5rem;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        
+        .add-form button:hover {
+            background-color: #2980b9;
+        }
+        
+        .todo-list {
+            list-style: none;
+        }
+        
+        .todo-item {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            background-color: #fafafa;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+        
+        .todo-item:hover {
+            background-color: #f0f0f0;
+        }
+        
+        .todo-item.completed {
+            background-color: #e8f5e8;
+        }
+        
+        .todo-item.completed .todo-title {
+            text-decoration: line-through;
+            color: #888;
+        }
+        
+        .todo-checkbox {
+            margin-right: 1rem;
+            transform: scale(1.2);
+        }
+        
+        .todo-title {
+            flex: 1;
+            font-size: 1rem;
+        }
+        
+        .todo-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        
+        .btn-delete {
+            background-color: #e74c3c;
+            color: white;
+        }
+        
+        .btn-delete:hover {
+            background-color: #c0392b;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: #888;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>TodoList</h1>
+        
+        <form class="add-form" action="/add" method="post">
+            <input type="text" name="title" placeholder="添加新的待办事项..." required>
+            <button type="submit">添加</button>
+        </form>
+        
+        <ul class="todo-list">
+            {% if todos %}
+                {% for todo in todos %}
+                <li class="todo-item {% if todo[2] %}completed{% endif %}">
+                    <a href="/toggle/{{ todo[0] }}" class="todo-checkbox-link">
+                        <input type="checkbox" class="todo-checkbox" {% if todo[2] %}checked{% endif %}>
+                    </a>
+                    <span class="todo-title">{{ todo[1] }}</span>
+                    <div class="todo-actions">
+                        <a href="/delete/{{ todo[0] }}" class="btn btn-delete">删除</a>
+                    </div>
+                </li>
+                {% endfor %}
+            {% else %}
+                <li class="empty-state">还没有待办事项，添加一个吧！</li>
+            {% endif %}
+        </ul>
+    </div>
+    
+    <script>
+        // 为复选框添加点击事件，触发父级a标签的链接
+        document.querySelectorAll('.todo-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('click', function(e) {
+                // 阻止复选框的默认行为
+                e.preventDefault();
+                // 获取父级a标签并点击
+                const link = this.closest('.todo-checkbox-link');
+                if (link) {
+                    link.click();
+                }
+            });
+        });
+        
+        // 为删除按钮添加确认提示
+        document.querySelectorAll('.btn-delete').forEach(button => {
+            button.addEventListener('click', function(e) {
+                if (!confirm('确定要删除这个待办事项吗？')) {
+                    e.preventDefault();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
