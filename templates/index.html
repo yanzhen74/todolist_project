@@ -305,8 +305,10 @@
             {% if todos %}
                 {% for todo in todos %}
                 <li class="todo-item {% if todo[2] %}completed{% endif %} {% if todo[4] %}recurring{% endif %}">
+                    {% if todo[0] > 0 %}
                     <input type="checkbox" class="item-checkbox" data-id="{{ todo[0] }}" style="margin-right: 1rem; transform: scale(1.2);">
-                    <form action="/toggle/{{ todo[0] }}" method="post" class="toggle-form" style="display: inline;">
+                    {% endif %}
+                    <form action="/toggle/{{ todo[0] if todo[0] > 0 else '' }}" method="post" class="toggle-form" style="display: inline;">
                         <input type="checkbox" class="todo-checkbox" {% if todo[2] %}checked{% endif %}>
                     </form>
                     <div class="todo-content">
@@ -345,9 +347,11 @@
                         {% endif %}
                     </div>
                     <div class="todo-actions">
+                        {% if todo[0] > 0 %}
                         <form action="/delete/{{ todo[0] }}" method="post" style="display: inline;">
                             <button type="submit" class="btn btn-delete">删除</button>
                         </form>
+                        {% endif %}
                     </div>
                 </li>
                 {% endfor %}
@@ -447,21 +451,22 @@
             });
             
             // 删除选中功能
-            deleteSelectedButton.addEventListener('click', function() {
-                const selectedIds = Array.from(itemCheckboxes)
-                    .filter(checkbox => checkbox.checked)
-                    .map(checkbox => checkbox.getAttribute('data-id'));
-                
-                if (selectedIds.length === 0) {
-                    alert('请先选择要删除的待办事项');
-                    return;
-                }
-                
-                if (confirm('确定要删除选中的待办事项吗？')) {
-                    selectedTodosInput.value = JSON.stringify(selectedIds);
-                    batchDeleteForm.submit();
-                }
-            });
+        deleteSelectedButton.addEventListener('click', function() {
+            const selectedIds = Array.from(itemCheckboxes)
+                .filter(checkbox => checkbox.checked)
+                .map(checkbox => checkbox.getAttribute('data-id'))
+                .filter(id => parseInt(id) > 0); // 只处理正ID
+            
+            if (selectedIds.length === 0) {
+                alert('请先选择要删除的待办事项');
+                return;
+            }
+            
+            if (confirm('确定要删除选中的待办事项吗？')) {
+                selectedTodosInput.value = JSON.stringify(selectedIds);
+                batchDeleteForm.submit();
+            }
+        });
         }
         
         // 为复选框添加点击事件，提交父级表单

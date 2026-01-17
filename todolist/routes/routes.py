@@ -1,4 +1,5 @@
 from flask import render_template, request, redirect, url_for
+from datetime import datetime, timedelta
 from todolist.db import TodoRepository
 from todolist.utils import calculate_next_occurrence
 
@@ -31,7 +32,46 @@ class RoutesManager:
             print("Index route: Getting all todos...")
             todos = self.todo_repository.get_all_todos()
             print(f"Index route: Got {len(todos)} todos")
-            return render_template('index.html', todos=todos)
+            
+            # Process recurring todos to show upcoming occurrences
+            processed_todos = []
+            now = datetime.now()
+            one_day_later = now + timedelta(days=1)
+            
+            for todo in todos:
+                todo_id, title, completed, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, next_occurrence = todo
+                
+                # Add the original todo
+                processed_todos.append(todo)
+                
+                # If it's a recurring todo and next_occurrence is set
+                if is_recurring and next_occurrence:
+                    try:
+                        # Parse next occurrence time
+                        next_occurrence_dt = datetime.strptime(next_occurrence, "%Y-%m-%d %H:%M:%S")
+                        
+                        # Check if next occurrence is within the next day
+                        if now <= next_occurrence_dt <= one_day_later:
+                            # Create a new todo instance for the upcoming occurrence
+                            # Use a negative ID to indicate it's a generated occurrence
+                            upcoming_todo = (
+                                -todo_id,  # Negative ID to distinguish from actual todos
+                                f"{title} (即将到来)",  # Indicate it's upcoming
+                                0,  # Not completed
+                                next_occurrence,  # Use next occurrence as deadline
+                                True,  # Mark as recurring
+                                recurrence_type,
+                                recurrence_interval,
+                                recurrence_days,
+                                next_occurrence
+                            )
+                            processed_todos.append(upcoming_todo)
+                    except ValueError as e:
+                        print(f"Error parsing next_occurrence {next_occurrence} for todo {todo_id}: {e}")
+                        continue
+            
+            print(f"Index route: Processed to {len(processed_todos)} todos")
+            return render_template('index.html', todos=processed_todos)
         except Exception as e:
             # Print detailed error information
             print(f"Index route error: {type(e).__name__}: {str(e)}")
@@ -82,6 +122,10 @@ class RoutesManager:
     def toggle_todo(self, todo_id):
         """Toggle todo completion status route"""
         try:
+            # Skip negative IDs (generated upcoming occurrences)
+            if todo_id < 0:
+                return redirect(url_for('index'))
+                
             # Get todo details
             todo = self.todo_repository.get_todo(todo_id)
 
