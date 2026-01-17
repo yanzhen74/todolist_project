@@ -270,13 +270,13 @@
                     <div class="recurrence-days-section" style="margin-top: 10px;">
                         <label>每周特定日：</label>
                         <div class="recurrence-days">
-                            <label><input type="checkbox" name="recurrence_days" value="0">周一</label>
-                            <label><input type="checkbox" name="recurrence_days" value="1">周二</label>
-                            <label><input type="checkbox" name="recurrence_days" value="2">周三</label>
-                            <label><input type="checkbox" name="recurrence_days" value="3">周四</label>
-                            <label><input type="checkbox" name="recurrence_days" value="4">周五</label>
-                            <label><input type="checkbox" name="recurrence_days" value="5">周六</label>
-                            <label><input type="checkbox" name="recurrence_days" value="6">周日</label>
+                            <label><input type="checkbox" name="recurrence_days_checkbox" value="0">周一</label>
+                            <label><input type="checkbox" name="recurrence_days_checkbox" value="1">周二</label>
+                            <label><input type="checkbox" name="recurrence_days_checkbox" value="2">周三</label>
+                            <label><input type="checkbox" name="recurrence_days_checkbox" value="3">周四</label>
+                            <label><input type="checkbox" name="recurrence_days_checkbox" value="4">周五</label>
+                            <label><input type="checkbox" name="recurrence_days_checkbox" value="5">周六</label>
+                            <label><input type="checkbox" name="recurrence_days_checkbox" value="6">周日</label>
                         </div>
                     </div>
                     
@@ -451,7 +451,7 @@
             addForm.addEventListener('submit', function(e) {
                 // 获取所有选中的星期几
                 const selectedDays = Array.from(
-                    document.querySelectorAll('input[name="recurrence_days"]:checked')
+                    document.querySelectorAll('input[name="recurrence_days_checkbox"]:checked')
                 ).map(checkbox => parseInt(checkbox.value));
                 
                 // 转换为JSON字符串
