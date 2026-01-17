@@ -454,7 +454,10 @@ class TestTodoListE2E:
         wait = WebDriverWait(driver, 5)
         wait.until(EC.presence_of_element_located((By.CLASS_NAME, "todo-item")))
         
-        # 不刷新页面，直接查找元素
+        # 刷新页面确保所有元素都是新鲜的
+        driver.refresh()
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "todo-item")))
+        
         # 验证待办事项已添加
         todo_items = driver.find_elements(By.CLASS_NAME, "todo-item")
         assert len(todo_items) > 0, "没有找到待办事项"
@@ -462,15 +465,31 @@ class TestTodoListE2E:
         # 查找包含指定文本的待办事项
         found_todo = False
         for item in todo_items:
-            if todo_text in item.text:
-                found_todo = True
-                break
+            try:
+                item_text = item.get_attribute("textContent")
+                if todo_text in item_text:
+                    found_todo = True
+                    break
+            except Exception:
+                # 如果元素已过期，跳过
+                continue
         assert found_todo, f"没有找到包含文本 '{todo_text}' 的待办事项"
         
         # 验证截止日期已显示
         deadline_elements = driver.find_elements(By.CLASS_NAME, "todo-deadline")
         assert len(deadline_elements) > 0, "没有找到截止日期元素"
-        assert any(element.is_displayed() for element in deadline_elements)
+        
+        # 检查是否有可见的截止日期元素
+        has_visible_deadline = False
+        for element in deadline_elements:
+            try:
+                if element.is_displayed():
+                    has_visible_deadline = True
+                    break
+            except Exception:
+                # 如果元素已过期，跳过
+                continue
+        assert has_visible_deadline, "没有可见的截止日期元素"
     
     @pytest.mark.e2e
     @pytest.mark.test_env
@@ -700,10 +719,20 @@ class TestTodoListE2E:
         item_checkboxes = driver.find_elements(By.CLASS_NAME, "item-checkbox")
         todo_items = driver.find_elements(By.CLASS_NAME, "todo-item")
         
-        assert len(item_checkboxes) == len(todo_items), "复选框数量应与待办事项数量一致"
+        # 只检查带有复选框的待办事项（跳过生成的即将到来的项）
+        checkable_items = []
+        for item in todo_items:
+            # 检查是否有item-checkbox
+            checkboxes = item.find_elements(By.CLASS_NAME, "item-checkbox")
+            if checkboxes:
+                checkable_items.append(item)
         
-        for i, (checkbox, todo_item) in enumerate(zip(item_checkboxes, todo_items)):
-            if todo_item.get_attribute("class").find("completed") != -1:
+        # 确保我们有与复选框数量匹配的可检查项
+        assert len(item_checkboxes) == len(checkable_items), f"复选框数量应与可检查项数量一致，实际复选框数量：{len(item_checkboxes)}，可检查项数量：{len(checkable_items)}"
+        
+        # 验证每个带有复选框的待办事项的选择状态
+        for i, (checkbox, todo_item) in enumerate(zip(item_checkboxes, checkable_items)):
+            if "completed" in todo_item.get_attribute("class"):
                 assert checkbox.is_selected(), f"已完成的待办事项{i+1}应被选中"
             else:
                 assert not checkbox.is_selected(), f"未完成的待办事项{i+1}不应被选中"
@@ -1160,3 +1189,99 @@ class TestTodoListE2E:
         
         # 只验证周期todo保持未完成状态，不验证截止时间变化，因为截止时间格式处理可能有问题
         # assert initial_deadline != updated_deadline, f"周期todo的截止时间应该已更新为下一次出现时间，初始: '{initial_deadline}', 更新后: '{updated_deadline}'"
+    
+    @pytest.mark.e2e
+    @pytest.mark.test_env
+    def test_recurring_todo_shows_upcoming_occurrence(self, driver):
+        """测试周期事项提前一天显示功能"""
+        # 访问应用
+        driver.get(APP_URL)
+        
+        # 等待页面加载完成
+        wait = WebDriverWait(driver, 10)
+        
+        # 首先清空所有现有待办事项
+        try:
+            delete_buttons = driver.find_elements(By.CLASS_NAME, "btn-delete")
+            for button in delete_buttons:
+                driver.execute_script("window.confirm = function() { return true; };")
+                button.click()
+                wait.until(EC.staleness_of(button))
+        except Exception as e:
+            pass
+        
+        # 刷新页面确保所有元素都是新鲜的
+        driver.refresh()
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "add-form")))
+        
+        # 填写todo标题
+        input_field = wait.until(EC.presence_of_element_located((By.NAME, "title")))
+        todo_text = "Upcoming recurrence todo"
+        input_field.send_keys(todo_text)
+        
+        # 启用周期设置
+        is_recurring_checkbox = wait.until(EC.presence_of_element_located((By.ID, "is_recurring")))
+        is_recurring_checkbox.click()
+        
+        # 设置周期类型为每日，这样可以快速看到变化
+        recurrence_type_select = wait.until(EC.presence_of_element_located((By.ID, "recurrence_type")))
+        for option in recurrence_type_select.find_elements(By.TAG_NAME, "option"):
+            if option.get_attribute("value") == "daily":
+                option.click()
+                break
+        
+        # 设置截止时间为当前时间-1天（昨天），这样下一次出现时间就是当前时间+23小时，在未来一天内
+        driver.execute_script("document.getElementById('deadline').value = new Date(Date.now() - 24*60*60*1000).toISOString().slice(0, 16);")
+        
+        # 提交表单
+        add_button = wait.until(EC.presence_of_element_located((By.CLASS_NAME, "add-form"))).find_element(By.TAG_NAME, "button")
+        add_button.click()
+        
+        # 等待todo显示
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "todo-item")))
+        
+        # 刷新页面确保所有元素正确加载
+        driver.refresh()
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "todo-item")))
+        
+        # 等待JavaScript执行完成
+        time.sleep(2)
+        
+        # 获取所有待办事项
+        todo_items = driver.find_elements(By.CLASS_NAME, "todo-item")
+        
+        # 打印调试信息
+        print(f"\n\n查找todo：'{todo_text}'")
+        print(f"找到 {len(todo_items)} 个待办事项")
+        
+        # 统计包含todo_text的待办事项数量
+        matching_items = []
+        for item in todo_items:
+            try:
+                item_text = item.text
+                item_text_full = item.get_attribute('textContent')
+                print(f"待办事项文本：'{item_text}'")
+                print(f"待办事项完整文本：'{item_text_full}'")
+                
+                if todo_text in item_text or todo_text in item_text_full:
+                    matching_items.append(item)
+            except Exception as e:
+                print(f"处理元素时出错：{e}")
+                continue
+        
+        # 验证至少有两个匹配项：当前项和提前显示的下一个周期项
+        assert len(matching_items) >= 2, f"预期至少有2个包含文本 '{todo_text}' 的待办事项，但实际有{len(matching_items)}个"
+        
+        # 验证至少一个是即将到来的项
+        has_upcoming = False
+        for item in matching_items:
+            try:
+                item_text = item.text
+                if "即将到来" in item_text:
+                    has_upcoming = True
+                    break
+            except Exception as e:
+                print(f"处理元素时出错：{e}")
+                continue
+        
+        assert has_upcoming, "预期至少有一个待办事项显示为'即将到来'，但没有找到"
