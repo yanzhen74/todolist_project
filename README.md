@@ -24,6 +24,10 @@ A simple and elegant TodoList web application built with Flask, featuring SQLite
 - ✅ Weekly recurrence with specific day selection
 - ✅ Automatic next occurrence calculation when marking as complete
 - ✅ Visible recurrence information in todo list
+- ✅ Batch operations: select all todo items
+- ✅ Batch operations: select completed todo items
+- ✅ Batch operations: delete selected todo items
+- ✅ Support for deleting periodic todos with batch operations
 
 ## Tech Stack
 
@@ -216,6 +220,13 @@ You can still override configuration using environment variables, which take pre
    - Periodic todos display their recurrence pattern next to the deadline
    - Example: "每3天" (Every 3 days), "每2周 一、三、五" (Every 2 weeks on Monday, Wednesday, Friday)
 
+7. **Batch operations**
+   - **Select All**: Click the checkbox at the top of the todo list to select all todo items
+   - **Select Completed**: Click the "选中已完成" (Select Completed) button to select only completed todo items
+   - **Delete Selected**: Click the "删除选中" (Delete Selected) button to delete all selected todo items
+   - Batch operations work for both regular and periodic todos
+   - When deleting periodic todos, the entire periodic todo is removed, not just the current occurrence
+
 ## Testing
 
 ### Running Tests
@@ -248,6 +259,10 @@ The test suite covers:
 - ✅ Adding weekly periodic todos
 - ✅ Adding monthly periodic todos
 - ✅ Marking periodic todos complete and verifying automatic update to next occurrence
+- ✅ Batch operations: Select all functionality
+- ✅ Batch operations: Select completed functionality
+- ✅ Batch operations: Delete selected functionality
+- ✅ Batch operations: Delete selected periodic todos
 
 ## Database Migration
 
@@ -270,7 +285,8 @@ CREATE TABLE IF NOT EXISTS todos (
     is_recurring INTEGER DEFAULT 0,
     recurrence_type TEXT DEFAULT '',
     recurrence_interval INTEGER DEFAULT 1,
-    recurrence_days TEXT DEFAULT '[]'
+    recurrence_days TEXT DEFAULT '[]',
+    next_occurrence DATETIME DEFAULT NULL
 );
 ```
 

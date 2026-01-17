@@ -89,3 +89,16 @@ class TodoRepository:
             conn.commit()
         finally:
             conn.close()
+
+    def batch_delete_todos(self, todo_ids):
+        """Batch delete multiple todos from the database"""
+        conn = self.db_connection.get_connection()
+        try:
+            cursor = conn.cursor()
+            # Use parameterized query to delete multiple todos
+            placeholders = ', '.join(['?' for _ in todo_ids])
+            cursor.execute(f'DELETE FROM todos WHERE id IN ({placeholders})', todo_ids)
+            conn.commit()
+        finally:
+            conn.close()
+

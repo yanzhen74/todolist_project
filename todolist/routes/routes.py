@@ -5,10 +5,10 @@ from todolist.utils import calculate_next_occurrence
 
 class RoutesManager:
     """Routes manager for TodoList application"""
-    
+
     def __init__(self, app, todo_repository):
         """Initialize routes manager
-        
+
         Args:
             app: Flask application instance
             todo_repository: TodoRepository instance
@@ -16,14 +16,15 @@ class RoutesManager:
         self.app = app
         self.todo_repository = todo_repository
         self.register_routes()
-    
+
     def register_routes(self):
         """Register all routes with the Flask application"""
         self.app.add_url_rule('/', view_func=self.index, methods=['GET'])
         self.app.add_url_rule('/add', view_func=self.add_todo, methods=['POST'])
         self.app.add_url_rule('/delete/<int:todo_id>', view_func=self.delete_todo, methods=['POST'])
         self.app.add_url_rule('/toggle/<int:todo_id>', view_func=self.toggle_todo, methods=['POST'])
-    
+        self.app.add_url_rule('/batch-delete', view_func=self.batch_delete, methods=['POST'])
+
     def index(self):
         """Home page route"""
         try:
@@ -37,19 +38,19 @@ class RoutesManager:
             import traceback
             traceback.print_exc()
             return f"An error occurred while loading todos: {type(e).__name__}: {str(e)}", 500
-    
+
     def add_todo(self):
         """Add todo route"""
         try:
             title = request.form['title']
             deadline = request.form.get('deadline')
-            
+
             # Get recurrence-related parameters
             is_recurring = request.form.get('is_recurring') == 'on'
             recurrence_type = request.form.get('recurrence_type')
             recurrence_interval = int(request.form.get('recurrence_interval', 1))
             recurrence_days = request.form.get('recurrence_days')
-            
+
             # Calculate next occurrence if needed
             next_occurrence = None
             if is_recurring and deadline:
@@ -57,18 +58,18 @@ class RoutesManager:
                     deadline, recurrence_type, recurrence_interval, recurrence_days,
                     logger=self.app.logger
                 )
-            
+
             # Add todo to database
             self.todo_repository.add_todo(
                 title, deadline, is_recurring, recurrence_type, recurrence_interval,
                 recurrence_days, next_occurrence
             )
-            
+
             return redirect(url_for('index'))
         except Exception as e:
             self.app.logger.error(f"Error adding todo: {e}")
             return "An error occurred while adding todo", 500
-    
+
     def delete_todo(self, todo_id):
         """Delete todo route"""
         try:
@@ -77,38 +78,38 @@ class RoutesManager:
         except Exception as e:
             self.app.logger.error(f"Error deleting todo: {e}")
             return "An error occurred while deleting todo", 500
-    
+
     def toggle_todo(self, todo_id):
         """Toggle todo completion status route"""
         try:
             # Get todo details
             todo = self.todo_repository.get_todo(todo_id)
-            
+
             if todo:
                 # Convert to dictionary for easier access
                 todo_dict = dict(todo)
                 completed = todo_dict['completed']
-                
+
                 # Check if it's a recurring todo
                 is_recurring = todo_dict['is_recurring']
-                
+
                 if is_recurring:
                     # Recurring todo: update to next occurrence instead of marking as complete
                     current_deadline = todo_dict['deadline']
                     recurrence_type = todo_dict['recurrence_type']
                     recurrence_interval = todo_dict['recurrence_interval']
                     recurrence_days = todo_dict['recurrence_days']
-                    
+
                     # Calculate next occurrence
                     next_occurrence = calculate_next_occurrence(
                         current_deadline, recurrence_type, recurrence_interval, recurrence_days,
                         logger=self.app.logger
                     )
-                    
+
                     if next_occurrence:
                         # Update todo to next occurrence
                         self.todo_repository.update_todo(
-                            todo_id, 
+                            todo_id,
                             deadline=next_occurrence,
                             next_occurrence=next_occurrence,
                             completed=0
@@ -117,8 +118,30 @@ class RoutesManager:
                     # Regular todo: toggle completion status normally
                     new_completed = 1 - completed
                     self.todo_repository.update_todo(todo_id, completed=new_completed)
-            
+
             return redirect(url_for('index'))
         except Exception as e:
             self.app.logger.error(f"Error toggling todo: {e}")
             return "An error occurred while updating todo", 500
+
+    def batch_delete(self):
+        """Batch delete todos route"""
+        try:
+            # Get the todo_ids from the form data
+            todo_ids_json = request.form.get('todo_ids')
+            if not todo_ids_json:
+                return redirect(url_for('index'))
+
+            # Parse the JSON string to get the list of todo ids
+            import json
+            todo_ids = json.loads(todo_ids_json)
+            # Convert to integers
+            todo_ids = [int(id) for id in todo_ids]
+
+            # Batch delete the todos
+            self.todo_repository.batch_delete_todos(todo_ids)
+
+            return redirect(url_for('index'))
+        except Exception as e:
+            self.app.logger.error(f'Error batch deleting todos: {e}')
+            return "An error occurred while deleting todos", 500

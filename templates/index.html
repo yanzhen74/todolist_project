@@ -287,11 +287,25 @@
             
             <button type="submit">添加</button>
         </form>
+        <!-- 批量操作按钮 -->
+        <div class="batch-actions">
+            <div style="display: flex; align-items: center;">
+                <input type="checkbox" id="select-all" style="margin-right: 0.5rem;">
+                <label for="select-all">全选</label>
+            </div>
+            <button id="select-completed" class="btn">选中已完成</button>
+            <button id="delete-selected" class="btn btn-delete">删除选中</button>
+        </div>
+
+        <form id="batch-delete-form" action="/batch-delete" method="post" style="display: none;">
+            <input type="hidden" id="selected-todos" name="todo_ids">
+        </form>
         
         <ul class="todo-list">
             {% if todos %}
                 {% for todo in todos %}
                 <li class="todo-item {% if todo[2] %}completed{% endif %} {% if todo[4] %}recurring{% endif %}">
+                    <input type="checkbox" class="item-checkbox" data-id="{{ todo[0] }}" style="margin-right: 1rem; transform: scale(1.2);">
                     <form action="/toggle/{{ todo[0] }}" method="post" class="toggle-form" style="display: inline;">
                         <input type="checkbox" class="todo-checkbox" {% if todo[2] %}checked{% endif %}>
                     </form>
@@ -367,6 +381,8 @@
             
             // 更新deadline状态样式
             updateDeadlineStatus();
+            // 初始化批量操作功能
+            initBatchOperations();
         });
         
         // 更新所有deadline状态样式
@@ -394,6 +410,56 @@
                         deadlineEl.classList.add('normal');
                         deadlineEl.textContent = `截止时间：${deadlineStr}`;
                     }
+                }
+            });
+        }
+        
+        // 批量操作功能初始化
+        function initBatchOperations() {
+            const selectAllCheckbox = document.getElementById('select-all');
+            const selectCompletedButton = document.getElementById('select-completed');
+            const deleteSelectedButton = document.getElementById('delete-selected');
+            const itemCheckboxes = document.querySelectorAll('.item-checkbox');
+            const batchDeleteForm = document.getElementById('batch-delete-form');
+            const selectedTodosInput = document.getElementById('selected-todos');
+            
+            // 全选功能
+            selectAllCheckbox.addEventListener('change', function() {
+                const isChecked = this.checked;
+                itemCheckboxes.forEach(checkbox => {
+                    checkbox.checked = isChecked;
+                });
+            });
+            
+            // 选中已完成功能
+            selectCompletedButton.addEventListener('click', function() {
+                // 先取消全选
+                selectAllCheckbox.checked = false;
+                
+                itemCheckboxes.forEach(checkbox => {
+                    const todoItem = checkbox.closest('.todo-item');
+                    if (todoItem && todoItem.classList.contains('completed')) {
+                        checkbox.checked = true;
+                    } else {
+                        checkbox.checked = false;
+                    }
+                });
+            });
+            
+            // 删除选中功能
+            deleteSelectedButton.addEventListener('click', function() {
+                const selectedIds = Array.from(itemCheckboxes)
+                    .filter(checkbox => checkbox.checked)
+                    .map(checkbox => checkbox.getAttribute('data-id'));
+                
+                if (selectedIds.length === 0) {
+                    alert('请先选择要删除的待办事项');
+                    return;
+                }
+                
+                if (confirm('确定要删除选中的待办事项吗？')) {
+                    selectedTodosInput.value = JSON.stringify(selectedIds);
+                    batchDeleteForm.submit();
                 }
             });
         }
