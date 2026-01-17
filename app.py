@@ -120,7 +120,7 @@ def add_todo():
         app.logger.error(f"Error adding todo: {e}")
         return "An error occurred while adding todo", 500
 
-@app.route('/delete/<int:todo_id>')
+@app.route('/delete/<int:todo_id>', methods=['POST'])
 def delete_todo(todo_id):
     try:
         with get_db_connection() as conn:
@@ -132,7 +132,7 @@ def delete_todo(todo_id):
         app.logger.error(f"Error deleting todo: {e}")
         return "An error occurred while deleting todo", 500
 
-@app.route('/toggle/<int:todo_id>')
+@app.route('/toggle/<int:todo_id>', methods=['POST'])
 def toggle_todo(todo_id):
     try:
         with get_db_connection() as conn:

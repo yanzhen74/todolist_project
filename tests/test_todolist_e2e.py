@@ -100,12 +100,13 @@ class TestTodoListE2E:
         deadline_input.send_keys(now)
         add_button.click()
         
-        # 等待待办事项显示
-        time.sleep(2)
+        # 等待待办事项显示，使用显式等待代替固定等待时间
+        wait = WebDriverWait(driver, 5)
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "todo-item")))
         
         # 刷新页面确保所有元素正确加载
         driver.refresh()
-        time.sleep(1)
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "todo-item")))
         
         # 验证待办事项已添加
         todo_items = driver.find_elements(By.CLASS_NAME, "todo-item")
@@ -134,8 +135,9 @@ class TestTodoListE2E:
         input_field.send_keys(todo_text)
         add_button.click()
         
-        # 等待待办事项显示
-        time.sleep(2)
+        # 等待待办事项显示，使用显式等待代替固定等待时间
+        wait = WebDriverWait(driver, 5)
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "todo-item")))
         
         # 获取所有待办事项
         todo_items = driver.find_elements(By.CLASS_NAME, "todo-item")
@@ -155,12 +157,13 @@ class TestTodoListE2E:
         # 使用普通点击，而不是JavaScript点击，这样可以检测出真实的用户交互问题
         checkbox.click()
         
-        # 等待页面刷新
-        time.sleep(3)
+        # 等待页面刷新，使用显式等待代替固定等待时间
+        wait = WebDriverWait(driver, 5)
+        wait.until(EC.staleness_of(first_todo))
         
         # 重新获取所有待办事项，验证状态变化
         driver.refresh()
-        time.sleep(2)
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "todo-item")))
         
         # 重新获取待办事项列表
         todo_items = driver.find_elements(By.CLASS_NAME, "todo-item")
@@ -175,12 +178,13 @@ class TestTodoListE2E:
         checkbox = updated_todo.find_element(By.CLASS_NAME, "todo-checkbox")
         checkbox.click()
         
-        # 等待页面刷新
-        time.sleep(3)
+        # 等待页面刷新，使用显式等待代替固定等待时间
+        wait = WebDriverWait(driver, 5)
+        wait.until(EC.staleness_of(updated_todo))
         
         # 验证恢复为未完成状态
         driver.refresh()
-        time.sleep(2)
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "todo-item")))
         
         todo_items = driver.find_elements(By.CLASS_NAME, "todo-item")
         assert len(todo_items) > 0, "没有找到待办事项"
@@ -204,8 +208,9 @@ class TestTodoListE2E:
         input_field.send_keys(todo_text)
         add_button.click()
         
-        # 等待待办事项显示
-        time.sleep(2)
+        # 等待待办事项显示，使用显式等待代替固定等待时间
+        wait = WebDriverWait(driver, 5)
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "todo-item")))
         
         # 移除确认对话框
         driver.execute_script("window.confirm = function() { return true; };")
@@ -218,8 +223,9 @@ class TestTodoListE2E:
         if delete_buttons:
             delete_buttons[0].click()
             
-            # 等待页面更新
-            time.sleep(3)
+            # 等待页面更新，使用显式等待代替固定等待时间
+            wait = WebDriverWait(driver, 5)
+            wait.until(EC.presence_of_element_located((By.CLASS_NAME, "todo-item")))
             
             # 重新获取所有待办事项
             # 不使用之前的元素引用，避免StaleElementReferenceException
@@ -254,8 +260,9 @@ class TestTodoListE2E:
         deadline_input.send_keys(now)
         add_button.click()
         
-        # 等待元素加载
-        time.sleep(1)
+        # 等待元素加载，使用显式等待代替固定等待时间
+        wait = WebDriverWait(driver, 5)
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "todo-item")))
         
         # 删除所有待办事项
         while True:
@@ -265,10 +272,14 @@ class TestTodoListE2E:
             if not delete_buttons:
                 break
             delete_buttons[0].click()
-            time.sleep(1)
+            
+            # 等待页面更新，使用显式等待代替固定等待时间
+            wait = WebDriverWait(driver, 5)
+            wait.until(EC.presence_of_element_located((By.CLASS_NAME, "todo-item")))
         
-        # 等待页面更新
-        time.sleep(2)
+        # 等待页面更新，使用显式等待代替固定等待时间
+        wait = WebDriverWait(driver, 5)
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "empty-state")))
         
         # 验证空状态显示
         empty_state = driver.find_element(By.CLASS_NAME, "empty-state")
@@ -294,8 +305,9 @@ class TestTodoListE2E:
         
         add_button.click()
         
-        # 等待待办事项显示
-        time.sleep(3)
+        # 等待待办事项显示，使用显式等待代替固定等待时间
+        wait = WebDriverWait(driver, 5)
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "todo-item")))
         
         # 不刷新页面，直接查找元素
         # 验证待办事项已添加
@@ -353,8 +365,9 @@ class TestTodoListE2E:
         driver.execute_script("document.getElementById('deadline').value = new Date(Date.now() - 24*60*60*1000).toISOString().slice(0, 16);")
         add_button.click()
         
-        # 等待添加完成
-        time.sleep(3)
+        # 等待添加完成，使用显式等待代替固定等待时间
+        wait = WebDriverWait(driver, 5)
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "todo-item")))
         
         # 重新获取元素，添加正常的待办事项
         input_field = driver.find_element(By.NAME, "title")  # 重新获取元素
@@ -365,12 +378,16 @@ class TestTodoListE2E:
         driver.execute_script("document.getElementById('deadline').value = new Date(Date.now() + 48*60*60*1000).toISOString().slice(0, 16);")
         add_button.click()
         
-        # 等待待办事项显示
-        time.sleep(3)
+        # 等待待办事项显示，使用显式等待代替固定等待时间
+        wait = WebDriverWait(driver, 5)
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "todo-item")))
         
         # 刷新页面以触发JavaScript状态更新
         driver.refresh()
-        time.sleep(3)
+        
+        # 等待页面加载完成，使用显式等待代替固定等待时间
+        wait = WebDriverWait(driver, 5)
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "todo-item")))
         
         # 获取所有截止日期元素
         deadline_elements = driver.find_elements(By.CLASS_NAME, "todo-deadline")

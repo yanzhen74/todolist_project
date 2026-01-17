@@ -4,17 +4,21 @@ A simple and elegant TodoList web application built with Flask, featuring SQLite
 
 ## Features
 
-- ✅ Add new todo items
+- ✅ Add new todo items with deadline support
+- ✅ Set default deadline (current time + 24 hours)
+- ✅ Deadline status display (overdue, upcoming, normal)
 - ✅ Mark items as completed/pending
 - ✅ Delete todo items
 - ✅ Responsive web design
 - ✅ Real-time updates
-- ✅ SQLite database storage
-- ✅ Multi-environment configuration support (local/stage/live)
+- ✅ SQLite database storage with automatic migration
+- ✅ Multi-environment configuration support (local/stage/live/test)
 - ✅ Command-line parameterized startup
 - ✅ Environment variable configuration
 - ✅ Comprehensive error handling
 - ✅ Production-ready setup
+- ✅ Comprehensive end-to-end testing
+- ✅ Security-enhanced HTTP methods (POST for delete/toggle operations)
 
 ## Tech Stack
 
@@ -172,8 +176,9 @@ You can still override configuration using environment variables, which take pre
 
 ## Usage
 
-1. **Add a todo item**
+1. **Add a todo item with deadline**
    - Enter the task in the input field
+   - Set a deadline using the datetime picker (default: current time + 24 hours)
    - Click "Add" button
 
 2. **Mark as completed/pending**
@@ -182,13 +187,55 @@ You can still override configuration using environment variables, which take pre
 3. **Delete a todo item**
    - Click the "Delete" button next to the todo item
 
+4. **Deadline status indicators**
+   - 🟢 **Normal**: Deadline is more than 24 hours away
+   - 🟠 **Upcoming**: Deadline is within the next 24 hours
+   - 🔴 **Overdue**: Deadline has passed
+
+## Testing
+
+### Running Tests
+
+The application includes comprehensive end-to-end tests. To run the tests:
+
+```bash
+# Run all tests
+python run_tests.py
+
+# Run only end-to-end tests
+python run_tests.py --marker e2e
+
+# Run a specific test
+python run_tests.py --test TestTodoListE2E::test_add_todo_item
+```
+
+### Test Coverage
+
+The test suite covers:
+- ✅ Home page loading
+- ✅ Adding todo items with and without deadlines
+- ✅ Marking items as completed/pending
+- ✅ Deleting todo items
+- ✅ Empty state display
+- ✅ Deadline default value
+- ✅ Deadline status display
+
+## Database Migration
+
+The application automatically handles database migrations:
+
+- When starting the application, it checks if the `deadline` column exists in the `todos` table
+- If the column is missing, it automatically adds it with a default value of current time + 24 hours
+- This ensures backward compatibility with existing databases
+
 ## Database Schema
 
 ```sql
 CREATE TABLE IF NOT EXISTS todos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
-    completed INTEGER DEFAULT 0
+    completed INTEGER DEFAULT 0,
+    deadline DATETIME DEFAULT (DATETIME('now', '+24 hours'))
 );
 ```
 
@@ -275,10 +322,13 @@ CREATE TABLE IF NOT EXISTS todos (
 
 ## Security Considerations
 
-- The application uses parameterized queries to prevent SQL injection
-- Debug mode is disabled by default in production
-- All database connections are properly managed and closed
-- Input validation is implemented for all user inputs
+- ✅ The application uses parameterized queries to prevent SQL injection
+- ✅ Debug mode is disabled by default in production
+- ✅ All database connections are properly managed and closed
+- ✅ Input validation is implemented for all user inputs
+- ✅ DELETE and TOGGLE operations use POST requests instead of GET requests to prevent CSRF attacks
+- ✅ Database migrations are handled automatically to maintain schema integrity
+- ✅ Comprehensive error handling prevents sensitive information leakage
 
 ## Contributing
 

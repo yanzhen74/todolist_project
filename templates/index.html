@@ -183,9 +183,9 @@
             {% if todos %}
                 {% for todo in todos %}
                 <li class="todo-item {% if todo[2] %}completed{% endif %}">
-                    <a href="/toggle/{{ todo[0] }}" class="todo-checkbox-link">
+                    <form action="/toggle/{{ todo[0] }}" method="post" class="toggle-form" style="display: inline;">
                         <input type="checkbox" class="todo-checkbox" {% if todo[2] %}checked{% endif %}>
-                    </a>
+                    </form>
                     <div class="todo-content">
                         <span class="todo-title">{{ todo[1] }}</span>
                         <span class="todo-deadline" data-deadline="{{ todo[3] }}">
@@ -193,7 +193,9 @@
                         </span>
                     </div>
                     <div class="todo-actions">
-                        <a href="/delete/{{ todo[0] }}" class="btn btn-delete">删除</a>
+                        <form action="/delete/{{ todo[0] }}" method="post" style="display: inline;">
+                            <button type="submit" class="btn btn-delete">删除</button>
+                        </form>
                     </div>
                 </li>
                 {% endfor %}
@@ -258,15 +260,15 @@
             });
         }
         
-        // 为复选框添加点击事件，触发父级a标签的链接
+        // 为复选框添加点击事件，提交父级表单
         document.querySelectorAll('.todo-checkbox').forEach(checkbox => {
             checkbox.addEventListener('click', function(e) {
                 // 阻止复选框的默认行为
                 e.preventDefault();
-                // 获取父级a标签并点击
-                const link = this.closest('.todo-checkbox-link');
-                if (link) {
-                    link.click();
+                // 获取父级表单并提交
+                const form = this.closest('.toggle-form');
+                if (form) {
+                    form.submit();
                 }
             });
         });
