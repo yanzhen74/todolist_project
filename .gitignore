@@ -47,3 +47,10 @@ htmlcov/
 
 # Trae AI files
 .trae/
+
+# Temporary test files
+check_local_db.py
+test_complete_flow.py
+test_error.py
+test_import.py
+test_weekly_recurrence.py
