@@ -369,6 +369,10 @@ CREATE TABLE IF NOT EXISTS todos (
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
+## Changelog
+
+See the [CHANGELOG](CHANGELOG.md) file for a detailed history of changes.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
