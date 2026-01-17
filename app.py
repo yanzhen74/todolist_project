@@ -64,13 +64,27 @@ def init_db():
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
+            
+            # 创建表（如果不存在）
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS todos (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     title TEXT NOT NULL,
-                    completed INTEGER DEFAULT 0
+                    completed INTEGER DEFAULT 0,
+                    deadline DATETIME DEFAULT (DATETIME('now', '+24 hours'))
                 )
             ''')
+            
+            # 检查 deadline 列是否存在
+            cursor.execute("PRAGMA table_info(todos)")
+            columns = [row[1] for row in cursor.fetchall()]
+            
+            # 如果 deadline 列不存在，添加它
+            if 'deadline' not in columns:
+                cursor.execute('''
+                    ALTER TABLE todos ADD COLUMN deadline DATETIME DEFAULT (DATETIME('now', '+24 hours'))
+                ''')
+            
             conn.commit()
     except Exception as e:
         app.logger.error(f"Error initializing database: {e}")
@@ -81,7 +95,7 @@ def index():
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute('SELECT id, title, completed FROM todos')
+            cursor.execute('SELECT id, title, completed, deadline FROM todos')
             todos = cursor.fetchall()
         return render_template('index.html', todos=todos)
     except Exception as e:
@@ -92,9 +106,14 @@ def index():
 def add_todo():
     try:
         title = request.form['title']
+        deadline = request.form.get('deadline')
+        
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute('INSERT INTO todos (title) VALUES (?)', (title,))
+            if deadline:
+                cursor.execute('INSERT INTO todos (title, deadline) VALUES (?, ?)', (title, deadline))
+            else:
+                cursor.execute('INSERT INTO todos (title) VALUES (?)', (title,))
             conn.commit()
         return redirect(url_for('index'))
     except Exception as e:

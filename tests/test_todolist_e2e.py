@@ -90,15 +90,34 @@ class TestTodoListE2E:
         
         # 添加待办事项
         input_field = driver.find_element(By.NAME, "title")
+        deadline_input = driver.find_element(By.NAME, "deadline")
         add_button = driver.find_element(By.CSS_SELECTOR, ".add-form button")
         
         todo_text = "Test todo item"
         input_field.send_keys(todo_text)
+        # 明确设置截止日期值，避免依赖JavaScript默认值
+        now = driver.execute_script("return new Date().toISOString().slice(0, 16);")
+        deadline_input.send_keys(now)
         add_button.click()
+        
+        # 等待待办事项显示
+        time.sleep(2)
+        
+        # 刷新页面确保所有元素正确加载
+        driver.refresh()
+        time.sleep(1)
         
         # 验证待办事项已添加
         todo_items = driver.find_elements(By.CLASS_NAME, "todo-item")
-        assert any(todo_text in item.text for item in todo_items)
+        assert len(todo_items) > 0, "没有找到待办事项"
+        
+        # 查找包含指定文本的待办事项
+        found_todo = False
+        for item in todo_items:
+            if todo_text in item.text:
+                found_todo = True
+                break
+        assert found_todo, f"没有找到包含文本 '{todo_text}' 的待办事项"
     
     @pytest.mark.e2e
     @pytest.mark.test_env
@@ -227,8 +246,12 @@ class TestTodoListE2E:
         
         # 首先添加一个待办事项以便测试删除功能
         input_field = driver.find_element(By.NAME, "title")
+        deadline_input = driver.find_element(By.NAME, "deadline")
         add_button = driver.find_element(By.CSS_SELECTOR, ".add-form button")
         input_field.send_keys("Test empty state")
+        # 明确设置截止日期值
+        now = driver.execute_script("return new Date().toISOString().slice(0, 16);")
+        deadline_input.send_keys(now)
         add_button.click()
         
         # 等待元素加载
@@ -250,3 +273,120 @@ class TestTodoListE2E:
         # 验证空状态显示
         empty_state = driver.find_element(By.CLASS_NAME, "empty-state")
         assert "还没有待办事项" in empty_state.text
+    
+    @pytest.mark.e2e
+    @pytest.mark.test_env
+    def test_add_todo_with_deadline(self, driver):
+        """测试添加带有截止日期的待办事项"""
+        # 访问应用
+        driver.get(APP_URL)
+        
+        # 添加待办事项
+        input_field = driver.find_element(By.NAME, "title")
+        deadline_input = driver.find_element(By.NAME, "deadline")
+        add_button = driver.find_element(By.CSS_SELECTOR, ".add-form button")
+        
+        todo_text = "Test todo with deadline"
+        input_field.send_keys(todo_text)
+        
+        # 使用JavaScript直接设置截止日期值，避免格式化问题
+        driver.execute_script("document.getElementById('deadline').value = new Date(Date.now() + 24*60*60*1000).toISOString().slice(0, 16);")
+        
+        add_button.click()
+        
+        # 等待待办事项显示
+        time.sleep(3)
+        
+        # 不刷新页面，直接查找元素
+        # 验证待办事项已添加
+        todo_items = driver.find_elements(By.CLASS_NAME, "todo-item")
+        assert len(todo_items) > 0, "没有找到待办事项"
+        
+        # 查找包含指定文本的待办事项
+        found_todo = False
+        for item in todo_items:
+            if todo_text in item.text:
+                found_todo = True
+                break
+        assert found_todo, f"没有找到包含文本 '{todo_text}' 的待办事项"
+        
+        # 验证截止日期已显示
+        deadline_elements = driver.find_elements(By.CLASS_NAME, "todo-deadline")
+        assert len(deadline_elements) > 0, "没有找到截止日期元素"
+        assert any(element.is_displayed() for element in deadline_elements)
+    
+    @pytest.mark.e2e
+    @pytest.mark.test_env
+    def test_deadline_default_value(self, driver):
+        """测试截止日期的默认值是否为当前时间+24小时"""
+        # 访问应用
+        driver.get(APP_URL)
+        
+        # 获取当前时间和默认截止时间
+        current_time = driver.execute_script("return new Date().getTime();")
+        default_deadline = driver.find_element(By.NAME, "deadline").get_attribute("value")
+        
+        # 将默认截止时间转换为时间戳
+        default_deadline_time = driver.execute_script(f"return new Date('{default_deadline}').getTime();")
+        
+        # 计算时间差（毫秒）
+        time_diff = default_deadline_time - current_time
+        
+        # 验证默认截止时间是否约为当前时间+24小时（允许1分钟误差）
+        expected_diff = 24 * 60 * 60 * 1000  # 24小时
+        tolerance = 60 * 1000  # 1分钟
+        assert abs(time_diff - expected_diff) <= tolerance, f"默认截止时间不正确，时间差：{time_diff/1000/60/60:.2f}小时"
+    
+    @pytest.mark.e2e
+    @pytest.mark.test_env
+    def test_deadline_status_display(self, driver):
+        """测试截止日期状态显示是否正确"""
+        # 访问应用
+        driver.get(APP_URL)
+        
+        # 添加过期的待办事项
+        input_field = driver.find_element(By.NAME, "title")
+        add_button = driver.find_element(By.CSS_SELECTOR, ".add-form button")
+        
+        input_field.send_keys("Overdue todo")
+        # 使用JavaScript直接设置过期日期
+        driver.execute_script("document.getElementById('deadline').value = new Date(Date.now() - 24*60*60*1000).toISOString().slice(0, 16);")
+        add_button.click()
+        
+        # 等待添加完成
+        time.sleep(3)
+        
+        # 重新获取元素，添加正常的待办事项
+        input_field = driver.find_element(By.NAME, "title")  # 重新获取元素
+        add_button = driver.find_element(By.CSS_SELECTOR, ".add-form button")  # 重新获取元素
+        
+        input_field.send_keys("Normal todo")
+        # 使用JavaScript直接设置正常日期
+        driver.execute_script("document.getElementById('deadline').value = new Date(Date.now() + 48*60*60*1000).toISOString().slice(0, 16);")
+        add_button.click()
+        
+        # 等待待办事项显示
+        time.sleep(3)
+        
+        # 刷新页面以触发JavaScript状态更新
+        driver.refresh()
+        time.sleep(3)
+        
+        # 获取所有截止日期元素
+        deadline_elements = driver.find_elements(By.CLASS_NAME, "todo-deadline")
+        assert len(deadline_elements) >= 2, f"预期至少有2个截止日期元素，但实际有{len(deadline_elements)}个"
+        
+        # 查找过期和正常状态的元素
+        has_overdue = False
+        has_normal = False
+        
+        for element in deadline_elements:
+            element_class = element.get_attribute("class")
+            if "overdue" in element_class:
+                has_overdue = True
+            elif "normal" in element_class:
+                has_normal = True
+        
+        # 验证状态显示
+        assert has_overdue, "没有找到过期状态的待办事项"
+        assert has_normal, "没有找到正常状态的待办事项"
