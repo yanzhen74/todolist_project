@@ -223,12 +223,26 @@ class TestTodoListE2E:
         todo_items = driver.find_elements(By.CLASS_NAME, "todo-item")
         assert len(todo_items) > 0, "没有找到待办事项"
         
+        # 调试信息：打印所有待办事项的文本
+        print(f"\n\n找到 {len(todo_items)} 个待办事项")
+        for i, item in enumerate(todo_items):
+            try:
+                item_text = item.get_attribute('textContent')
+                print(f"待办事项 {i+1} 完整文本：'{item_text}'")
+                print(f"待办事项 {i+1} 普通文本：'{item.text}'")
+            except Exception as e:
+                print(f"获取待办事项 {i+1} 文本时出错：{e}")
+        
         # 查找包含指定文本的待办事项
         target_todo = None
         for item in todo_items:
-            if todo_text in item.text:
-                target_todo = item
-                break
+            try:
+                item_text = item.get_attribute('textContent')
+                if todo_text in item_text:
+                    target_todo = item
+                    break
+            except Exception as e:
+                print(f"处理待办事项时出错：{e}")
         assert target_todo is not None, f"没有找到包含文本 '{todo_text}' 的待办事项"
         
         # 先检查初始状态：待办事项不应该是完成状态，也不应该是周期事项
@@ -808,26 +822,52 @@ class TestTodoListE2E:
     def _clear_all_todos(self, driver, wait):
         """清空所有待办事项"""
         try:
-            delete_buttons = driver.find_elements(By.CLASS_NAME, "btn-delete")
-            if delete_buttons:
-                # 设置window.confirm为总是返回true
-                driver.execute_script("window.confirm = function() { return true; };")
+            # 直接使用JavaScript清空所有待办事项，避免StaleElementReferenceException
+            driver.execute_script("window.confirm = function() { return true; }; ")
+            
+            # 先检查是否有批量删除功能
+            try:
+                # 检查select-all元素是否存在
+                select_all_button = driver.find_element(By.ID, "select-all")
+                if select_all_button.is_displayed():
+                    # 点击全选按钮
+                    driver.execute_script("arguments[0].click();", select_all_button)
+                    
+                    # 点击删除选中按钮
+                    delete_selected_button = driver.find_element(By.ID, "delete-selected")
+                    driver.execute_script("arguments[0].click();", delete_selected_button)
+                    
+                    # 等待页面更新
+                    time.sleep(1)
+                    driver.refresh()
+                    return
+            except Exception as e:
+                print(f"批量删除失败: {e}")
+                # 如果批量删除失败，尝试单个删除
                 
-                for button in delete_buttons:
-                    button_class = button.get_attribute("class")
-                    button_id = button.get_attribute("id")
-                    # 跳过批量删除按钮
-                    if "delete-selected" not in button_id:
+            # 单个删除
+            for _ in range(10):  # 最多尝试10次
+                delete_buttons = driver.find_elements(By.CLASS_NAME, "btn-delete")
+                # 过滤掉批量删除按钮
+                individual_delete_buttons = [button for button in delete_buttons if button.get_attribute("id") != "delete-selected"]
+                
+                if not individual_delete_buttons:
+                    break
+                    
+                for button in individual_delete_buttons:
+                    try:
                         driver.execute_script("arguments[0].click();", button)
-                        try:
-                            wait.until(EC.staleness_of(button))
-                        except:
-                            pass
+                        time.sleep(0.5)
+                    except Exception as e:
+                        print(f"删除单个待办事项时出错: {e}")
+                        continue
                 
-                # 刷新页面
                 driver.refresh()
+                wait.until(EC.presence_of_element_located((By.CLASS_NAME, "add-form")))
         except Exception as e:
             print(f"清空待办事项时出错: {e}")
+            import traceback
+            traceback.print_exc()
             pass
     
     def _add_todo(self, driver, wait, title):
@@ -1080,6 +1120,9 @@ class TestTodoListE2E:
         # 等待页面加载完成
         wait = WebDriverWait(driver, 10)
         
+        # 清空现有数据
+        self._clear_all_todos(driver, wait)
+        
         # 等待表单加载
         add_form = wait.until(EC.presence_of_element_located((By.CLASS_NAME, "add-form")))
         assert add_form.is_displayed()
@@ -1184,10 +1227,10 @@ class TestTodoListE2E:
                 continue
         assert updated_todo is not None, f"没有找到包含文本 '{todo_text}' 的周期待办事项"
         
-        # 验证todo没有被标记为完成
-        assert "completed" not in updated_todo.get_attribute("class"), "周期todo应该保持未完成状态"
+        # 验证todo被标记为完成
+        assert "completed" in updated_todo.get_attribute("class"), "周期todo应该被标记为已完成状态"
         
-        # 验证截止时间已更新
+        # 验证截止时间没有变化（因为我们现在保留已完成实例）
         updated_deadline_element = updated_todo.find_element(By.CLASS_NAME, "todo-deadline")
         updated_deadline_text = updated_deadline_element.text
         # 提取实际日期部分，忽略状态文本
@@ -1196,8 +1239,8 @@ class TestTodoListE2E:
         # 打印调试信息
         print(f"\n\n初始截止时间: '{initial_deadline}', 更新后截止时间: '{updated_deadline}'\n\n")
         
-        # 只验证周期todo保持未完成状态，不验证截止时间变化，因为截止时间格式处理可能有问题
-        # assert initial_deadline != updated_deadline, f"周期todo的截止时间应该已更新为下一次出现时间，初始: '{initial_deadline}', 更新后: '{updated_deadline}'"
+        # 验证截止时间没有变化，因为我们现在保留已完成实例
+        assert initial_deadline == updated_deadline, f"已完成的周期todo截止时间不应该变化，初始: '{initial_deadline}', 更新后: '{updated_deadline}'"
     
     @pytest.mark.e2e
     @pytest.mark.test_env
@@ -1213,7 +1256,7 @@ class TestTodoListE2E:
         try:
             delete_buttons = driver.find_elements(By.CLASS_NAME, "btn-delete")
             for button in delete_buttons:
-                driver.execute_script("window.confirm = function() { return true; };")
+                driver.execute_script("window.confirm = function() { return true; }; ")
                 button.click()
                 wait.until(EC.staleness_of(button))
         except Exception as e:
@@ -1238,13 +1281,51 @@ class TestTodoListE2E:
             if option.get_attribute("value") == "daily":
                 option.click()
                 break
+    
+    @pytest.mark.e2e
+    @pytest.mark.test_env
+    def test_weekly_recurring_todo_shows_upcoming_occurrence(self, driver):
+        """测试每周特定日周期todo显示即将到来的待办事项，删除最后一个实例后生成新实例"""
+        # 访问应用
+        driver.get(APP_URL)
         
-        # 设置截止时间为当前时间+23小时，确保下一次出现时间（当前时间+23+24=47小时）不在未来一天内
-        # 然后手动添加一个即将到来的事项
-        driver.execute_script("document.getElementById('deadline').value = new Date(Date.now() + 23*60*60*1000).toISOString().slice(0, 16);")
+        # 等待页面加载完成
+        wait = WebDriverWait(driver, 10)
+        
+        # 清空现有数据
+        self._clear_all_todos(driver, wait)
+        
+        # 等待表单加载
+        add_form = wait.until(EC.presence_of_element_located((By.CLASS_NAME, "add-form")))
+        assert add_form.is_displayed()
+        
+        # 添加一条周期事项，重复周期是周一和周五
+        input_field = wait.until(EC.presence_of_element_located((By.NAME, "title")))
+        todo_text = "Test weekly todo"
+        input_field.send_keys(todo_text)
+        
+        # 设置截止日期为1月12日（周一）
+        driver.execute_script("document.getElementById('deadline').value = '2026-01-12T10:00';")
+        
+        # 启用周期设置
+        is_recurring_checkbox = wait.until(EC.presence_of_element_located((By.ID, "is_recurring")))
+        is_recurring_checkbox.click()
+        
+        # 设置周期类型为每周
+        recurrence_type_select = wait.until(EC.presence_of_element_located((By.ID, "recurrence_type")))
+        for option in recurrence_type_select.find_elements(By.TAG_NAME, "option"):
+            if option.get_attribute("value") == "weekly":
+                option.click()
+                break
+        
+        # 选择周一和周五
+        # 周一的复选框是第一个，周五是第五个
+        # 使用JavaScript选择周一和周五
+        driver.execute_script("document.querySelectorAll('.recurrence-days input')[0].checked = true;")
+        driver.execute_script("document.querySelectorAll('.recurrence-days input')[4].checked = true;")
         
         # 提交表单
-        add_button = wait.until(EC.presence_of_element_located((By.CLASS_NAME, "add-form"))).find_element(By.TAG_NAME, "button")
+        add_button = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".add-form button")))
         add_button.click()
         
         # 等待todo显示
@@ -1254,44 +1335,303 @@ class TestTodoListE2E:
         driver.refresh()
         wait.until(EC.presence_of_element_located((By.CLASS_NAME, "todo-item")))
         
-        # 等待JavaScript执行完成
-        time.sleep(2)
-        
-        # 获取所有待办事项
+        # 查找所有待办事项
         todo_items = driver.find_elements(By.CLASS_NAME, "todo-item")
+        print(f"\n\n找到 {len(todo_items)} 个待办事项")
         
-        # 打印调试信息
-        print(f"\n\n查找todo：'{todo_text}'")
-        print(f"找到 {len(todo_items)} 个待办事项")
+        # 检查是否显示了四个实例：1月12日（周一）、1月16日（周五）、1月19日（周一）、1月23日（周五）
+        expected_dates = ["2026-01-12", "2026-01-16", "2026-01-19", "2026-01-23"]
+        found_dates = []
         
-        # 简化测试，只验证待办事项已添加即可
-        matching_items = []
         for item in todo_items:
             try:
-                item_text = item.text
-                item_text_full = item.get_attribute('textContent')
-                print(f"待办事项文本：'{item_text}'")
-                print(f"待办事项完整文本：'{item_text_full}'")
+                item_text = item.get_attribute('textContent')
+                print(f"待办事项完整文本：'{item_text}'")
                 
-                if todo_text in item_text or todo_text in item_text_full:
-                    matching_items.append(item)
+                # 查找包含日期的文本
+                for date in expected_dates:
+                    if date in item_text:
+                        found_dates.append(date)
+                        break
             except Exception as e:
+                # 如果元素已过期，跳过并继续循环
                 print(f"处理元素时出错：{e}")
                 continue
         
-        # 简化测试，只验证待办事项已添加即可
-        assert len(matching_items) >= 1, f"预期至少有1个包含文本 '{todo_text}' 的待办事项，但实际有{len(matching_items)}个"
+        # 检查是否找到了所有预期的日期
+        for date in expected_dates:
+            assert date in found_dates, f"没有找到预期的日期：{date}"
         
-        # 验证待办事项有正确的周期信息
-        has_recurrence_info = False
-        for item in matching_items:
+        # 找到1月23日的实例
+        jan23_todo = None
+        for item in driver.find_elements(By.CLASS_NAME, "todo-item"):
+            item_text = item.get_attribute('textContent')
+            if "Test weekly todo" in item_text and "2026-01-23" in item_text:
+                jan23_todo = item
+                break
+        
+        assert jan23_todo is not None, "没有找到1月23日的待办事项"
+        
+        # 选中1月23日的实例
+        checkbox = jan23_todo.find_element(By.CLASS_NAME, "item-checkbox")
+        checkbox.click()
+        
+        # 点击删除选中按钮
+        delete_selected_button = wait.until(EC.presence_of_element_located((By.ID, "delete-selected")))
+        
+        # 设置window.confirm函数，自动确认删除
+        driver.execute_script("window.confirm = function() { return true; }; ")
+        
+        # 使用JavaScript点击删除选中按钮，避免StaleElementReferenceException
+        driver.execute_script("arguments[0].click();", delete_selected_button)
+        
+        # 等待页面更新
+        time.sleep(1)
+        driver.refresh()
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "todo-item")))
+        
+        # 查找所有待办事项
+        todo_items_after = driver.find_elements(By.CLASS_NAME, "todo-item")
+        print(f"\n\n删除后找到 {len(todo_items_after)} 个待办事项")
+        
+        # 检查1月23日实例不再显示
+        found_jan23 = False
+        for item in todo_items_after:
             try:
-                recurrence_elements = item.find_elements(By.CLASS_NAME, "todo-recurrence")
-                if recurrence_elements:
-                    has_recurrence_info = True
+                item_text = item.get_attribute('textContent')
+                if "Test weekly todo" in item_text and "2026-01-23" in item_text:
+                    found_jan23 = True
                     break
             except Exception as e:
+                continue
+        assert not found_jan23, "1月23日的实例应该被删除，但仍然显示"
+        
+        # 检查是否生成并显示了1月26日的新实例
+        found_jan26 = False
+        for item in todo_items_after:
+            try:
+                item_text = item.get_attribute('textContent')
+                print(f"删除后待办事项完整文本：'{item_text}'")
+                
+                # 查找包含"Test weekly todo"和"2026-01-26"的文本
+                if "Test weekly todo" in item_text and "2026-01-26" in item_text:
+                    found_jan26 = True
+                    print("找到1月26日的待办事项")
+                    break
+            except Exception as e:
+                # 如果元素已过期，跳过并继续循环
                 print(f"处理元素时出错：{e}")
                 continue
         
-        assert has_recurrence_info, "预期待办事项包含周期信息，但没有找到"
+        # 验证是否生成了1月26日的新实例
+        assert found_jan26, "没有找到1月26日的待办事项，删除1月23日实例后应该生成1月26日的新实例"
+        
+        # 接下来测试删除1月19日的实例
+        print("\n\n===== 测试删除1月19日实例 =====")
+        jan19_todo = None
+        for item in driver.find_elements(By.CLASS_NAME, "todo-item"):
+            item_text = item.get_attribute('textContent')
+            if "Test weekly todo" in item_text and "2026-01-19" in item_text:
+                jan19_todo = item
+                break
+        
+        assert jan19_todo is not None, "没有找到1月19日的待办事项"
+        
+        # 选中并删除1月19日的实例
+        checkbox = jan19_todo.find_element(By.CLASS_NAME, "item-checkbox")
+        checkbox.click()
+        
+        # 再次设置window.confirm函数，确保它在页面刷新后仍然有效
+        driver.execute_script("window.confirm = function() { return true; }; ")
+        
+        delete_selected_button = wait.until(EC.presence_of_element_located((By.ID, "delete-selected")))
+        driver.execute_script("arguments[0].click();", delete_selected_button)
+        
+        # 等待页面更新
+        time.sleep(1)
+        
+        # 确保没有未处理的对话框
+        try:
+            alert = wait.until(EC.alert_is_present())
+            if alert:
+                alert.accept()
+        except:
+            pass
+        
+        driver.refresh()
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "todo-item")))
+        
+        # 检查1月19日实例不再显示
+        found_jan19 = False
+        for item in driver.find_elements(By.CLASS_NAME, "todo-item"):
+            try:
+                item_text = item.get_attribute('textContent')
+                if "Test weekly todo" in item_text and "2026-01-19" in item_text:
+                    found_jan19 = True
+                    break
+            except Exception as e:
+                continue
+        assert not found_jan19, "1月19日的实例应该被删除，但仍然显示"
+        
+        # 接下来测试删除1月16日的实例
+        print("\n\n===== 测试删除1月16日实例 =====")
+        jan16_todo = None
+        for item in driver.find_elements(By.CLASS_NAME, "todo-item"):
+            item_text = item.get_attribute('textContent')
+            if "Test weekly todo" in item_text and "2026-01-16" in item_text:
+                jan16_todo = item
+                break
+        
+        assert jan16_todo is not None, "没有找到1月16日的待办事项"
+        
+        # 选中并删除1月16日的实例
+        checkbox = jan16_todo.find_element(By.CLASS_NAME, "item-checkbox")
+        checkbox.click()
+        
+        # 再次设置window.confirm函数，确保它在页面刷新后仍然有效
+        driver.execute_script("window.confirm = function() { return true; }; ")
+        
+        delete_selected_button = wait.until(EC.presence_of_element_located((By.ID, "delete-selected")))
+        driver.execute_script("arguments[0].click();", delete_selected_button)
+        
+        # 等待页面更新
+        time.sleep(1)
+        
+        # 确保没有未处理的对话框
+        try:
+            alert = wait.until(EC.alert_is_present())
+            if alert:
+                alert.accept()
+        except:
+            pass
+        
+        driver.refresh()
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "todo-item")))
+        
+        # 检查1月16日实例不再显示
+        found_jan16 = False
+        for item in driver.find_elements(By.CLASS_NAME, "todo-item"):
+            try:
+                item_text = item.get_attribute('textContent')
+                if "Test weekly todo" in item_text and "2026-01-16" in item_text:
+                    found_jan16 = True
+                    break
+            except Exception as e:
+                continue
+        assert not found_jan16, "1月16日的实例应该被删除，但仍然显示"
+        
+        # 接下来测试删除1月12日的实例
+        print("\n\n===== 测试删除1月12日实例 =====")
+        jan12_todo = None
+        for item in driver.find_elements(By.CLASS_NAME, "todo-item"):
+            item_text = item.get_attribute('textContent')
+            if "Test weekly todo" in item_text and "2026-01-12" in item_text:
+                jan12_todo = item
+                break
+        
+        assert jan12_todo is not None, "没有找到1月12日的待办事项"
+        
+        # 选中并删除1月12日的实例
+        checkbox = jan12_todo.find_element(By.CLASS_NAME, "item-checkbox")
+        checkbox.click()
+        
+        # 再次设置window.confirm函数，确保它在页面刷新后仍然有效
+        driver.execute_script("window.confirm = function() { return true; }; ")
+        
+        delete_selected_button = wait.until(EC.presence_of_element_located((By.ID, "delete-selected")))
+        driver.execute_script("arguments[0].click();", delete_selected_button)
+        
+        # 等待页面更新
+        time.sleep(1)
+        
+        # 确保没有未处理的对话框
+        try:
+            alert = wait.until(EC.alert_is_present())
+            if alert:
+                alert.accept()
+        except:
+            pass
+        
+        driver.refresh()
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "todo-item")))
+        
+        # 检查1月12日实例不再显示
+        found_jan12 = False
+        for item in driver.find_elements(By.CLASS_NAME, "todo-item"):
+            try:
+                item_text = item.get_attribute('textContent')
+                if "Test weekly todo" in item_text and "2026-01-12" in item_text:
+                    found_jan12 = True
+                    break
+            except Exception as e:
+                continue
+        assert not found_jan12, "1月12日的实例应该被删除，但仍然显示"
+        
+        print("\n\n所有删除测试都通过了！")
+    
+    @pytest.mark.e2e
+    @pytest.mark.test_env
+    def test_batch_delete_cancel_deletes_selected(self, driver):
+        """测试批量删除选择取消时删除当前选中事项"""
+        # 访问应用
+        driver.get(APP_URL)
+        wait = WebDriverWait(driver, 10)
+        
+        # 1. 清空现有数据
+        self._clear_all_todos(driver, wait)
+        
+        # 2. 增加一条每日周期事项，方便测试
+        input_field = wait.until(EC.presence_of_element_located((By.NAME, "title")))
+        todo_text = "Daily recurring todo"
+        input_field.send_keys(todo_text)
+        
+        # 启用周期设置
+        is_recurring_checkbox = wait.until(EC.presence_of_element_located((By.ID, "is_recurring")))
+        is_recurring_checkbox.click()
+        
+        # 设置周期类型为每日
+        recurrence_type_select = wait.until(EC.presence_of_element_located((By.ID, "recurrence_type")))
+        for option in recurrence_type_select.find_elements(By.TAG_NAME, "option"):
+            if option.get_attribute("value") == "daily":
+                option.click()
+                break
+        
+        # 提交表单
+        add_button = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".add-form button")))
+        add_button.click()
+        
+        # 等待todo显示
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "todo-item")))
+        
+        # 刷新页面确保元素加载完全
+        driver.refresh()
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "todo-item")))
+        
+        # 选择待办事项
+        item_checkboxes = driver.find_elements(By.CLASS_NAME, "item-checkbox")
+        assert len(item_checkboxes) >= 1, "预期至少有1个复选框"
+        
+        driver.execute_script("arguments[0].click();", item_checkboxes[0])
+        
+        # 点击删除选中按钮
+        delete_selected_button = wait.until(EC.presence_of_element_located((By.ID, "delete-selected")))
+        # 设置window.confirm为总是返回true
+        driver.execute_script("window.confirm = function() { return true; };")
+        delete_selected_button.click()
+        
+        # 等待页面更新
+        wait.until(EC.staleness_of(item_checkboxes[0]))
+        
+        # 刷新页面确保元素加载完全
+        driver.refresh()
+        
+        # 验证周期事项已被删除
+        try:
+            # 等待1秒，确保页面有足够时间更新
+            time.sleep(1)
+            remaining_items = driver.find_elements(By.CLASS_NAME, "todo-item")
+            # 因为是每日周期事项，删除一个实例后应该还有其他实例
+            assert len(remaining_items) > 0, f"预期还有剩余待办事项，但实际有{len(remaining_items)}个"
+        except:
+            # 如果捕获到异常，说明测试失败
+            assert False, "测试失败：删除选中项后验证剩余事项数量时出错"

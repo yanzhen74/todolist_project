@@ -28,6 +28,12 @@ A simple and elegant TodoList web application built with Flask, featuring SQLite
 - ✅ Batch operations: select completed todo items
 - ✅ Batch operations: delete selected todo items
 - ✅ Support for deleting periodic todos with batch operations
+- ✅ Fixed periodic todo completed checkboxes not working
+- ✅ Improved delete confirmation dialog with draggable feature
+- ✅ Added clear "Delete All" and "Only Delete Current" options for periodic todos
+- ✅ Maintained page scroll position after operations
+- ✅ Fixed "Delete Selected" functionality for periodic todos
+- ✅ Fixed "Delete All" functionality for periodic todos
 
 ## Tech Stack
 

@@ -304,13 +304,18 @@
         <ul class="todo-list">
             {% if todos %}
                 {% for todo in todos %}
-                <li class="todo-item {% if todo[2] %}completed{% endif %} {% if todo[4] %}recurring{% endif %}">
+                <li id="todo-{{ todo[0] }}" class="todo-item {% if todo[2] %}completed{% endif %} {% if todo[4] %}recurring{% endif %}">
                     {% if todo[0] > 0 %}
                     <input type="checkbox" class="item-checkbox" data-id="{{ todo[0] }}" style="margin-right: 1rem; transform: scale(1.2);">
                     {% endif %}
-                    <form action="/toggle/{{ todo[0] if todo[0] > 0 else '' }}" method="post" class="toggle-form" style="display: inline;">
+                    {% if todo[0] > 0 %}
+                    <form action="/toggle/{{ todo[0] }}#todo-{{ todo[0] }}" method="post" class="toggle-form" style="display: inline;">
                         <input type="checkbox" class="todo-checkbox" {% if todo[2] %}checked{% endif %}>
                     </form>
+                    {% else %}
+                    <!-- 即将到来的事项不允许直接操作 -->
+                    <input type="checkbox" class="todo-checkbox" disabled {% if todo[2] %}checked{% endif %} style="opacity: 0.5; cursor: not-allowed;">
+                    {% endif %}
                     <div class="todo-content">
                         <span class="todo-title">{{ todo[1] }}</span>
                         <span class="todo-deadline" data-deadline="{{ todo[3] }}">
@@ -348,9 +353,7 @@
                     </div>
                     <div class="todo-actions">
                         {% if todo[0] > 0 %}
-                        <form action="/delete/{{ todo[0] }}" method="post" style="display: inline;">
-                            <button type="submit" class="btn btn-delete">删除</button>
-                        </form>
+                        <button type="button" class="btn btn-delete" data-todo-id="{{ todo[0] }}" data-is-recurring="{{ 'true' if todo[4] else 'false' }}" data-original-id="{{ todo[0] // 1000000 if todo[4] else '' }}">删除</button>
                         {% endif %}
                     </div>
                 </li>
@@ -451,42 +454,236 @@
             });
             
             // 删除选中功能
-        deleteSelectedButton.addEventListener('click', function() {
-            const selectedIds = Array.from(itemCheckboxes)
-                .filter(checkbox => checkbox.checked)
-                .map(checkbox => checkbox.getAttribute('data-id'))
-                .filter(id => parseInt(id) > 0); // 只处理正ID
+            deleteSelectedButton.addEventListener('click', function() {
+                const selectedItems = Array.from(itemCheckboxes)
+                    .filter(checkbox => checkbox.checked);
+                
+                if (selectedItems.length === 0) {
+                    alert('请先选择要删除的待办事项');
+                    return;
+                }
+                
+                // 获取选中的ID
+                const selectedIds = selectedItems
+                    .map(item => item.getAttribute('data-id'))
+                    .filter(id => parseInt(id) > 0);
+                
+                // 显示确认对话框
+                if (confirm('确定要删除选中的待办事项吗？')) {
+                    // 仅删除当前实例，不管是周期还是非周期事项
+                    selectedTodosInput.value = JSON.stringify({todo_ids: selectedIds, delete_all: false});
+                    batchDeleteForm.submit();
+                }
+            });
             
-            if (selectedIds.length === 0) {
-                alert('请先选择要删除的待办事项');
-                return;
-            }
-            
-            if (confirm('确定要删除选中的待办事项吗？')) {
-                selectedTodosInput.value = JSON.stringify(selectedIds);
-                batchDeleteForm.submit();
-            }
-        });
-        }
-        
-        // 为复选框添加点击事件，提交父级表单
-        document.querySelectorAll('.todo-checkbox').forEach(checkbox => {
+            // 为复选框添加点击事件，提交父级表单
+        document.querySelectorAll('.todo-checkbox:not([disabled])').forEach(checkbox => {
             checkbox.addEventListener('click', function(e) {
-                // 阻止复选框的默认行为
-                e.preventDefault();
                 // 获取父级表单并提交
                 const form = this.closest('.toggle-form');
                 if (form) {
-                    form.submit();
+                    // 延迟提交表单，确保复选框状态先更新
+                    setTimeout(() => {
+                        form.submit();
+                    }, 10);
                 }
             });
         });
+        }
         
-        // 为删除按钮添加确认提示
+        // 为删除按钮添加确认提示和逻辑处理
         document.querySelectorAll('.btn-delete').forEach(button => {
             button.addEventListener('click', function(e) {
-                if (!confirm('确定要删除这个待办事项吗？')) {
-                    e.preventDefault();
+                // 跳过批量删除按钮
+                if (this.id === 'delete-selected') {
+                    return;
+                }
+                
+                e.preventDefault();
+                const todoId = this.getAttribute('data-todo-id');
+                const isRecurring = this.getAttribute('data-is-recurring') === 'true';
+                const originalId = this.getAttribute('data-original-id');
+                
+                if (isRecurring) {
+                    // 创建半透明背景遮罩
+                    const overlay = document.createElement('div');
+                    overlay.style.cssText = `
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        background-color: rgba(0, 0, 0, 0.5);
+                        z-index: 999;
+                    `;
+                    document.body.appendChild(overlay);
+                    
+                    // 创建自定义确认对话框
+                    const dialog = document.createElement('div');
+                    dialog.style.cssText = `
+                        position: fixed;
+                        top: 30%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        background: white;
+                        border: 1px solid #ccc;
+                        border-radius: 8px;
+                        padding: 20px;
+                        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+                        z-index: 1000;
+                        font-family: Arial, sans-serif;
+                        cursor: move;
+                    `;
+                    
+                    const dialogContent = document.createElement('div');
+                    dialogContent.innerHTML = `
+                        <h3 style="margin-top: 0; margin-bottom: 15px; color: #333; cursor: default;">删除周期事项</h3>
+                        <p style="margin-bottom: 20px; color: #555; cursor: default;">检测到这是周期事项</p>
+                        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                            <button id="cancel-btn" style="
+                                padding: 8px 16px;
+                                background-color: #95a5a6;
+                                color: white;
+                                border: none;
+                                border-radius: 4px;
+                                cursor: pointer;
+                                font-size: 14px;
+                            ">取消</button>
+                            <button id="delete-current-btn" style="
+                                padding: 8px 16px;
+                                background-color: #3498db;
+                                color: white;
+                                border: none;
+                                border-radius: 4px;
+                                cursor: pointer;
+                                font-size: 14px;
+                            ">仅删除当前</button>
+                            <button id="delete-all-btn" style="
+                                padding: 8px 16px;
+                                background-color: #e74c3c;
+                                color: white;
+                                border: none;
+                                border-radius: 4px;
+                                cursor: pointer;
+                                font-size: 14px;
+                            ">删除全部</button>
+                        </div>
+                    `;
+                    
+                    dialog.appendChild(dialogContent);
+                    document.body.appendChild(dialog);
+                    
+                    // 添加拖动功能
+                    let isDragging = false;
+                    let startX, startY, startLeft, startTop;
+                    
+                    // 鼠标按下事件
+                    dialog.addEventListener('mousedown', function(e) {
+                        // 只有点击对话框标题或空白区域才能拖动
+                        if (e.target.tagName === 'H3' || e.target === dialog || e.target === dialogContent) {
+                            isDragging = true;
+                            // 获取鼠标相对于对话框的位置
+                            startX = e.clientX - dialog.offsetLeft;
+                            startY = e.clientY - dialog.offsetTop;
+                            // 阻止默认行为
+                            e.preventDefault();
+                        }
+                    });
+                    
+                    // 鼠标移动事件
+                    document.addEventListener('mousemove', function(e) {
+                        if (isDragging) {
+                            // 计算新位置
+                            const newLeft = e.clientX - startX;
+                            const newTop = e.clientY - startY;
+                            // 更新对话框位置
+                            dialog.style.left = newLeft + 'px';
+                            dialog.style.top = newTop + 'px';
+                            // 移除transform属性，避免与直接定位冲突
+                            dialog.style.transform = 'none';
+                        }
+                    });
+                    
+                    // 鼠标释放事件
+                    document.addEventListener('mouseup', function() {
+                        isDragging = false;
+                    });
+                    
+                    // 点击遮罩关闭对话框
+                    overlay.addEventListener('click', function() {
+                        document.body.removeChild(overlay);
+                        document.body.removeChild(dialog);
+                    });
+                    
+                    // 取消按钮事件
+                    dialogContent.querySelector('#cancel-btn').addEventListener('click', function() {
+                        // 仅关闭对话框，不执行任何操作
+                        document.body.removeChild(overlay);
+                        document.body.removeChild(dialog);
+                    });
+                    
+                    // 仅删除当前按钮事件
+                    dialogContent.querySelector('#delete-current-btn').addEventListener('click', function() {
+                        // 删除当前实例
+                        // 构建删除数据
+                        const deleteData = {
+                            todo_ids: [parseInt(todoId)],
+                            delete_all: false
+                        };
+                        
+                        // 提交到批量删除端点
+                        const batchDeleteForm = document.getElementById('batch-delete-form');
+                        const selectedTodosInput = document.getElementById('selected-todos');
+                        selectedTodosInput.value = JSON.stringify(deleteData);
+                        batchDeleteForm.submit();
+                        
+                        // 移除对话框和遮罩
+                        document.body.removeChild(overlay);
+                        document.body.removeChild(dialog);
+                    });
+                    
+                    // 删除全部按钮事件
+                    dialogContent.querySelector('#delete-all-btn').addEventListener('click', function() {
+                        // 全部删除（彻底删除周期事项）
+                        // 如果originalId有效，直接删除周期事项；否则，使用todoId作为备选方案
+                        const deleteId = originalId ? originalId : todoId;
+                        fetch(`/delete/${deleteId}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                        })
+                        .then(response => {
+                            if (response.redirected) {
+                                window.location.href = response.url + '#todo-' + todoId;
+                            } else {
+                                window.location.reload();
+                            }
+                        })
+                        .catch(error => console.error('删除失败:', error));
+                        
+                        // 移除对话框和遮罩
+                        document.body.removeChild(overlay);
+                        document.body.removeChild(dialog);
+                    });
+                } else {
+                    // 非周期事项，直接删除
+                    if (confirm('确定要删除这个待办事项吗？')) {
+                        fetch(`/delete/${todoId}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                        })
+                        .then(response => {
+                            if (response.redirected) {
+                                window.location.href = response.url + '#todo-' + todoId;
+                            } else {
+                                window.location.reload();
+                            }
+                        })
+                        .catch(error => console.error('删除失败:', error));
+                    }
                 }
             });
         });

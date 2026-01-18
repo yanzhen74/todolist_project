@@ -26,7 +26,8 @@ class DatabaseInitializer:
                     recurrence_type TEXT DEFAULT NULL,
                     recurrence_interval INTEGER DEFAULT 1,
                     recurrence_days TEXT DEFAULT NULL,
-                    next_occurrence DATETIME DEFAULT NULL
+                    next_occurrence DATETIME DEFAULT NULL,
+                    deleted_occurrences TEXT DEFAULT NULL
                 )
             ''')
             
@@ -64,6 +65,18 @@ class DatabaseInitializer:
             if 'next_occurrence' not in columns:
                 cursor.execute('''
                     ALTER TABLE todos ADD COLUMN next_occurrence DATETIME DEFAULT NULL
+                ''')
+            
+            # Add deleted_occurrences column if missing
+            if 'deleted_occurrences' not in columns:
+                cursor.execute('''
+                    ALTER TABLE todos ADD COLUMN deleted_occurrences TEXT DEFAULT NULL
+                ''')
+            
+            # Add completed_occurrences column if missing
+            if 'completed_occurrences' not in columns:
+                cursor.execute('''
+                    ALTER TABLE todos ADD COLUMN completed_occurrences TEXT DEFAULT NULL
                 ''')
             
             conn.commit()
