@@ -38,6 +38,9 @@ class RoutesManager:
             now = datetime.now()
             one_day_later = now + timedelta(days=1)
             
+            # 用于跟踪已添加的事项，避免重复
+            added_upcoming = set()
+            
             for todo in todos:
                 todo_id, title, completed, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, next_occurrence = todo
                 
@@ -49,23 +52,30 @@ class RoutesManager:
                     try:
                         # Parse next occurrence time
                         next_occurrence_dt = datetime.strptime(next_occurrence, "%Y-%m-%d %H:%M:%S")
+                        # Parse current deadline
+                        deadline_dt = datetime.strptime(deadline, "%Y-%m-%d %H:%M:%S")
                         
                         # Check if next occurrence is within the next day
+                        # Always add upcoming occurrence if it's within the next day
                         if now <= next_occurrence_dt <= one_day_later:
-                            # Create a new todo instance for the upcoming occurrence
-                            # Use a negative ID to indicate it's a generated occurrence
-                            upcoming_todo = (
-                                -todo_id,  # Negative ID to distinguish from actual todos
-                                f"{title} (即将到来)",  # Indicate it's upcoming
-                                0,  # Not completed
-                                next_occurrence,  # Use next occurrence as deadline
-                                True,  # Mark as recurring
-                                recurrence_type,
-                                recurrence_interval,
-                                recurrence_days,
-                                next_occurrence
-                            )
-                            processed_todos.append(upcoming_todo)
+                            # 生成唯一标识符，避免重复添加
+                            unique_key = f"{todo_id}-{next_occurrence}"
+                            if unique_key not in added_upcoming:
+                                # Create a new todo instance for the upcoming occurrence
+                                # Use a negative ID to indicate it's a generated occurrence
+                                upcoming_todo = (
+                                    -todo_id,  # Negative ID to distinguish from actual todos
+                                    f"{title} (即将到来)",  # Indicate it's upcoming
+                                    0,  # Not completed
+                                    next_occurrence,  # Use next occurrence as deadline
+                                    True,  # Mark as recurring
+                                    recurrence_type,
+                                    recurrence_interval,
+                                    recurrence_days,
+                                    next_occurrence
+                                )
+                                processed_todos.append(upcoming_todo)
+                                added_upcoming.add(unique_key)
                     except ValueError as e:
                         print(f"Error parsing next_occurrence {next_occurrence} for todo {todo_id}: {e}")
                         continue
