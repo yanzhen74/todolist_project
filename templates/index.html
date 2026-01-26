@@ -645,22 +645,16 @@
                     // 删除全部按钮事件
                     dialogContent.querySelector('#delete-all-btn').addEventListener('click', function() {
                         // 全部删除（彻底删除周期事项）
-                        // 如果originalId有效，直接删除周期事项；否则，使用todoId作为备选方案
-                        const deleteId = originalId ? originalId : todoId;
-                        fetch(`/delete/${deleteId}`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/x-www-form-urlencoded',
-                            },
-                        })
-                        .then(response => {
-                            if (response.redirected) {
-                                window.location.href = response.url + '#todo-' + todoId;
-                            } else {
-                                window.location.reload();
-                            }
-                        })
-                        .catch(error => console.error('删除失败:', error));
+                        // 使用批量删除接口，传递delete_all参数
+                        const deleteData = {
+                            todo_ids: [parseInt(originalId)],
+                            delete_all: true
+                        };
+                        
+                        const batchDeleteForm = document.getElementById('batch-delete-form');
+                        const selectedTodosInput = document.getElementById('selected-todos');
+                        selectedTodosInput.value = JSON.stringify(deleteData);
+                        batchDeleteForm.submit();
                         
                         // 移除对话框和遮罩
                         document.body.removeChild(overlay);

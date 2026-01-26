@@ -99,9 +99,11 @@ class TodoRepository:
         try:
             cursor = conn.cursor()
             
+            # 使用字典来跟踪每个原始ID的更新状态，防止多次更新冲突
+            original_updates = {}
+            
             # 处理每个待删除的ID
             for todo_id in todo_ids:
-                # 计算原始ID和实例索引
                 # 检查该ID是否存在于数据库中
                 cursor.execute('SELECT COUNT(*) FROM todos WHERE id = ?', (todo_id,))
                 exists_in_db = cursor.fetchone()[0] > 0
@@ -109,153 +111,195 @@ class TodoRepository:
                 is_generated_id = not exists_in_db  # 如果ID不存在于数据库中，则是生成的ID
                 original_id = todo_id // 1000000 if is_generated_id else todo_id
                 
-                # 生成足够多的实例来找到正确的实例，而不是依赖索引
-                from datetime import datetime
-                occurrence_index = 0  # 不再使用索引，而是通过生成ID来匹配实例
-                
-                # 获取原始待办事项信息
-                cursor.execute('SELECT id, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, deleted_occurrences, completed_occurrences FROM todos WHERE id = ?', (original_id,))
-                todo = cursor.fetchone()
-                
-                if todo:
-                    if len(todo) == 8:
-                        id_in_db, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, deleted_occurrences_json, completed_occurrences_json = todo
-                    else:
-                        id_in_db, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, deleted_occurrences_json = todo
-                        completed_occurrences_json = None
-                    
-                    if is_recurring:
-                        # 周期事项处理
-                        if delete_all:
-                            # 删除所有实例（删除整个周期事项）
-                            cursor.execute('DELETE FROM todos WHERE id = ?', (original_id,))
-                        elif is_generated_id:
-                            # 仅删除当前实例（标记为已删除）
-                            # 解析已删除的实例
-                            deleted_occurrences = []
-                            if deleted_occurrences_json:
-                                try:
-                                    deleted_occurrences = json.loads(deleted_occurrences_json)
-                                except (json.JSONDecodeError, TypeError):
+                if is_generated_id:
+                    # 检查是否已经在更新字典中
+                    if original_id not in original_updates:
+                        # 获取原始待办事项信息
+                        cursor.execute('SELECT id, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, deleted_occurrences, completed_occurrences FROM todos WHERE id = ?', (original_id,))
+                        todo = cursor.fetchone()
+                        
+                        if todo:
+                            if len(todo) == 8:
+                                id_in_db, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, deleted_occurrences_json, completed_occurrences_json = todo
+                            else:
+                                id_in_db, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, deleted_occurrences_json = todo
+                                completed_occurrences_json = None
+                            
+                            if is_recurring:
+                                if delete_all:
+                                    # 删除全部：删除整个周期任务
+                                    cursor.execute('DELETE FROM todos WHERE id = ?', (original_id,))
+                                    continue  # 跳过后续处理
+                                else:
+                                    # 解析已删除的实例
                                     deleted_occurrences = []
-                            
-                            # 解析已完成的实例
-                            completed_occurrences = []
-                            if completed_occurrences_json:
-                                try:
-                                    completed_occurrences = json.loads(completed_occurrences_json)
-                                except (json.JSONDecodeError, TypeError):
+                                    if deleted_occurrences_json:
+                                        try:
+                                            deleted_occurrences = json.loads(deleted_occurrences_json)
+                                        except (json.JSONDecodeError, TypeError):
+                                            deleted_occurrences = []
+                                    
+                                    # 解析已完成的实例
                                     completed_occurrences = []
-                            
-                            # 生成所有需要的实例
-                            from todolist.utils import generate_all_occurrences, calculate_next_occurrence
-                            
-                            # 生成初始实例
-                            all_occurrences = generate_all_occurrences(
-                                deadline,
-                                recurrence_type,
-                                recurrence_interval,
-                                recurrence_days
-                            )
-                            
-                            # 生成更多实例来找到正确的实例
-                            for _ in range(20):  # 生成足够多的实例
-                                if all_occurrences:
-                                    last_occurrence = all_occurrences[-1]
-                                    next_occurrence_val = calculate_next_occurrence(
-                                        last_occurrence,
-                                        recurrence_type,
-                                        recurrence_interval,
-                                        recurrence_days
-                                    )
-                                    if next_occurrence_val and next_occurrence_val not in all_occurrences:
-                                        all_occurrences.append(next_occurrence_val)
-                                    else:
-                                        break
+                                    if completed_occurrences_json:
+                                        try:
+                                            completed_occurrences = json.loads(completed_occurrences_json)
+                                        except (json.JSONDecodeError, TypeError):
+                                            completed_occurrences = []
+                                    
+                                    # 存储到更新字典中
+                                    original_updates[original_id] = {
+                                        'deadline': deadline,
+                                        'recurrence_type': recurrence_type,
+                                        'recurrence_interval': recurrence_interval,
+                                        'recurrence_days': recurrence_days,
+                                        'deleted_occurrences': deleted_occurrences,
+                                        'completed_occurrences': completed_occurrences
+                                    }
+                    
+                    # 如果不是删除全部，处理当前实例
+                    if not delete_all and original_id in original_updates:
+                        update_info = original_updates[original_id]
+                        
+                        # 生成所有需要的实例
+                        from todolist.utils import generate_all_occurrences, calculate_next_occurrence
+                        from datetime import datetime
+                        
+                        # 生成更多初始实例
+                        all_occurrences = generate_all_occurrences(
+                            update_info['deadline'],
+                            update_info['recurrence_type'],
+                            update_info['recurrence_interval'],
+                            update_info['recurrence_days'],
+                            limit=50  # 增加限制以生成更多实例
+                        )
+                        
+                        # 生成更多实例来找到正确的实例
+                        for _ in range(20):  # 生成足够多的实例
+                            if all_occurrences:
+                                last_occurrence = all_occurrences[-1]
+                                next_occurrence_val = calculate_next_occurrence(
+                                    last_occurrence,
+                                    update_info['recurrence_type'],
+                                    update_info['recurrence_interval'],
+                                    update_info['recurrence_days']
+                                )
+                                if next_occurrence_val and next_occurrence_val not in all_occurrences:
+                                    all_occurrences.append(next_occurrence_val)
                                 else:
                                     break
+                            else:
+                                break
+                        
+                        # 生成所有实例，然后找出与当前ID匹配的实例
+                        current_occurrence = None
+                        for occurrence in all_occurrences:
+                            # 使用相同的ID生成逻辑来匹配实例
+                            occ_datetime = datetime.strptime(occurrence, '%Y-%m-%d %H:%M:%S')
+                            occ_timestamp = int(occ_datetime.timestamp())
+                            unique_part = occ_timestamp % 1000000
+                            generated_id = original_id * 1000000 + unique_part
                             
-                            # 生成所有实例，然后找出与当前ID匹配的实例
-                            current_occurrence = None
-                            for occurrence in all_occurrences:
-                                # 使用相同的ID生成逻辑来匹配实例
-                                occ_datetime = datetime.strptime(occurrence, '%Y-%m-%d %H:%M:%S')
-                                occ_timestamp = int(occ_datetime.timestamp())
-                                unique_part = occ_timestamp % 1000000
-                                generated_id = original_id * 1000000 + unique_part
-                                
-                                if generated_id == todo_id:
-                                    current_occurrence = occurrence
-                                    break
+                            if generated_id == todo_id:
+                                current_occurrence = occurrence
+                                break
+                        
+                        # 确保只删除指定的实例
+                        if current_occurrence:
+                            # 确保current_occurrence不在deleted_occurrences中
+                            if current_occurrence not in update_info['deleted_occurrences']:
+                                update_info['deleted_occurrences'].append(current_occurrence)
                             
-                            # 确保只删除指定的实例
-                            if current_occurrence:
-                                
-                                # 确保current_occurrence不在deleted_occurrences中
-                                if current_occurrence not in deleted_occurrences:
-                                    deleted_occurrences.append(current_occurrence)
-                                
-                                # 从已完成列表中移除该实例
-                                if current_occurrence in completed_occurrences:
-                                    completed_occurrences.remove(current_occurrence)
-                                
-                                # 计算所有可能的实例，包括已经生成的和可能的未来实例
-                                all_possible_occurrences = all_occurrences.copy()
-                                if all_possible_occurrences:
-                                    # 再生成一些额外的实例，确保我们有足够的未来实例来计算
-                                    last_occurrence = all_possible_occurrences[-1]
-                                    for _ in range(2):  # 再生成2个额外的实例
-                                        next_occurrence_val = calculate_next_occurrence(
-                                            last_occurrence,
-                                            recurrence_type,
-                                            recurrence_interval,
-                                            recurrence_days
-                                        )
-                                        
-                                        if next_occurrence_val and next_occurrence_val not in all_possible_occurrences:
-                                            all_possible_occurrences.append(next_occurrence_val)
-                                            last_occurrence = next_occurrence_val
-                                        else:
-                                            break
-                                
-                                # 找到所有可能实例中时间最靠近未来的实例
-                                active_occurrences = [occurrence for occurrence in all_possible_occurrences if occurrence not in deleted_occurrences]
-                                
-                                # 计算下一个要生成的实例
-                                next_occurrence_to_update = None
-                                if active_occurrences:
-                                    # 找到当前所有活跃实例中最大的时间
-                                    max_active_time = max(active_occurrences)
-                                    # 为这个最大时间生成下一个实例
-                                    next_occurrence_to_update = calculate_next_occurrence(
-                                        max_active_time,
-                                        recurrence_type,
-                                        recurrence_interval,
-                                        recurrence_days
-                                    )
-                                
-                                # 更新原始待办事项
-                                update_data = {
-                                    'deleted_occurrences': json.dumps(deleted_occurrences),
-                                    'completed_occurrences': json.dumps(completed_occurrences)
-                                }
-                                
-                                # 如果生成了下一个实例，更新next_occurrence字段
-                                if next_occurrence_to_update:
-                                    update_data['next_occurrence'] = next_occurrence_to_update
-                                
-                                # 构建SQL更新语句
-                                set_clause = ', '.join([f'{key} = ?' for key in update_data.keys()])
-                                values = list(update_data.values()) + [original_id]
-                                
-                                cursor.execute(
-                                    f'UPDATE todos SET {set_clause} WHERE id = ?',
-                                    values
-                                )
-                        # else: 如果是原始ID且delete_all为false，不执行任何操作，避免意外删除整个周期任务
+                            # 从已完成列表中移除该实例（如果存在）
+                            if current_occurrence in update_info['completed_occurrences']:
+                                update_info['completed_occurrences'] = [occ for occ in update_info['completed_occurrences'] if occ != current_occurrence]
+                else:
+                    # 非周期性ID，直接删除
+                    cursor.execute('DELETE FROM todos WHERE id = ?', (todo_id,))
+            
+            # 应用所有累积的更新
+            for original_id, update_info in original_updates.items():
+                # 计算所有可能的实例，包括已经生成的和可能的未来实例
+                from todolist.utils import generate_all_occurrences, calculate_next_occurrence
+                from datetime import datetime
+                
+                all_occurrences = generate_all_occurrences(
+                    update_info['deadline'],
+                    update_info['recurrence_type'],
+                    update_info['recurrence_interval'],
+                    update_info['recurrence_days'],
+                    limit=50  # 增加限制以生成更多实例
+                )
+                
+                # 生成更多实例来找到正确的实例
+                for _ in range(20):  # 生成足够多的实例
+                    if all_occurrences:
+                        last_occurrence = all_occurrences[-1]
+                        next_occurrence_val = calculate_next_occurrence(
+                            last_occurrence,
+                            update_info['recurrence_type'],
+                            update_info['recurrence_interval'],
+                            update_info['recurrence_days']
+                        )
+                        if next_occurrence_val and next_occurrence_val not in all_occurrences:
+                            all_occurrences.append(next_occurrence_val)
+                        else:
+                            break
                     else:
-                        # 非周期事项，直接删除
-                        cursor.execute('DELETE FROM todos WHERE id = ?', (original_id,))
+                        break
+                
+                all_possible_occurrences = all_occurrences.copy()
+                if all_possible_occurrences:
+                    # 再生成一些额外的实例，确保我们有足够的未来实例来计算
+                    last_occurrence = all_possible_occurrences[-1]
+                    for _ in range(2):  # 再生成2个额外的实例
+                        next_occurrence_val = calculate_next_occurrence(
+                            last_occurrence,
+                            update_info['recurrence_type'],
+                            update_info['recurrence_interval'],
+                            update_info['recurrence_days']
+                        )
+                        
+                        if next_occurrence_val and next_occurrence_val not in all_possible_occurrences:
+                            all_possible_occurrences.append(next_occurrence_val)
+                            last_occurrence = next_occurrence_val
+                        else:
+                            break
+                
+                # 找到所有可能实例中时间最靠近未来的实例
+                active_occurrences = [occurrence for occurrence in all_possible_occurrences if occurrence not in update_info['deleted_occurrences']]
+                
+                # 计算下一个要生成的实例
+                next_occurrence_to_update = None
+                if active_occurrences:
+                    # 找到当前所有活跃实例中最大的时间
+                    max_active_time = max(active_occurrences)
+                    # 为这个最大时间生成下一个实例
+                    next_occurrence_to_update = calculate_next_occurrence(
+                        max_active_time,
+                        update_info['recurrence_type'],
+                        update_info['recurrence_interval'],
+                        update_info['recurrence_days']
+                    )
+                
+                # 更新原始待办事项
+                update_data = {
+                    'deleted_occurrences': json.dumps(update_info['deleted_occurrences']),
+                    'completed_occurrences': json.dumps(update_info['completed_occurrences'])
+                }
+                
+                # 如果生成了下一个实例，更新next_occurrence字段
+                if next_occurrence_to_update:
+                    update_data['next_occurrence'] = next_occurrence_to_update
+                
+                # 构建SQL更新语句
+                set_clause = ', '.join([f'{key} = ?' for key in update_data.keys()])
+                values = list(update_data.values()) + [original_id]
+                
+                cursor.execute(
+                    f'UPDATE todos SET {set_clause} WHERE id = ?',
+                    values
+                )
             
             conn.commit()
         except Exception as e:

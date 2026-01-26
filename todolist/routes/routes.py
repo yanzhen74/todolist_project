@@ -65,81 +65,49 @@ class RoutesManager:
                             except (json.JSONDecodeError, TypeError, ValueError, Exception):
                                 completed_occurrences_list = []
                         
-                        # Generate all possible occurrences
+                        # Generate all possible occurrences with a higher limit
                         all_possible_occurrences = []
                         current_deadline = deadline
                         
-                        # 生成初始实例
+                        # 生成更多初始实例
                         initial_occurrences = generate_all_occurrences(
                             deadline, recurrence_type, recurrence_interval, recurrence_days,
-                            logger=self.app.logger
+                            logger=self.app.logger, limit=50  # 增加限制以生成更多实例
                         )
                         
                         # 添加初始实例到所有可能实例列表
                         all_possible_occurrences.extend(initial_occurrences)
                         
-                        # 确保我们有足够多的实例来过滤
-                        if all_possible_occurrences:
-                            last_occurrence = all_possible_occurrences[-1]
-                            # 再生成一些额外的实例，确保我们有足够的实例来显示4个未删除的
-                            for _ in range(10):
-                                next_occurrence_val = calculate_next_occurrence(
-                                    last_occurrence, recurrence_type, recurrence_interval, recurrence_days,
-                                    logger=self.app.logger
-                                )
-                                
-                                if next_occurrence_val and next_occurrence_val not in all_possible_occurrences:
-                                    all_possible_occurrences.append(next_occurrence_val)
-                                    last_occurrence = next_occurrence_val
-                                else:
-                                    break
-                        
                         # 过滤掉已删除的实例，但保留已完成的实例
                         filtered_occurrences = [occurrence for occurrence in all_possible_occurrences 
                                                 if occurrence not in deleted_occurrences_list]
                         
-                        # 确保始终显示4个实例
-                        while len(filtered_occurrences) < 4 and filtered_occurrences:
+                        # 确保始终显示至少4个实例，如果不够则继续生成
+                        while len(filtered_occurrences) < 4:
                             # 获取当前最后一个实例
-                            last_occurrence = filtered_occurrences[-1]
+                            if filtered_occurrences:
+                                last_occurrence = filtered_occurrences[-1]
+                            else:
+                                # 如果没有实例，则从原始截止时间开始
+                                last_occurrence = deadline
                             # 生成下一个实例
                             next_occurrence = calculate_next_occurrence(
                                 last_occurrence, recurrence_type, recurrence_interval, recurrence_days,
                                 logger=self.app.logger
                             )
                             
-                            if next_occurrence and next_occurrence not in filtered_occurrences:
+                            if next_occurrence and next_occurrence not in all_possible_occurrences and next_occurrence not in deleted_occurrences_list:
+                                all_possible_occurrences.append(next_occurrence)
                                 filtered_occurrences.append(next_occurrence)
                             else:
                                 break
                         
-                        # 如果过滤后没有实例，生成新的实例
-                        if not filtered_occurrences:
-                            next_occurrence = calculate_next_occurrence(
-                                deadline, recurrence_type, recurrence_interval, recurrence_days,
-                                logger=self.app.logger
-                            )
-                            
-                            if next_occurrence:
-                                filtered_occurrences.append(next_occurrence)
-                                # 继续生成更多实例，直到达到4个
-                                while len(filtered_occurrences) < 4:
-                                    last_occurrence = filtered_occurrences[-1]
-                                    next_occurrence = calculate_next_occurrence(
-                                        last_occurrence, recurrence_type, recurrence_interval, recurrence_days,
-                                        logger=self.app.logger
-                                    )
-                                    
-                                    if next_occurrence and next_occurrence not in filtered_occurrences:
-                                        filtered_occurrences.append(next_occurrence)
-                                    else:
-                                        break
-                        
-                        # 只保留前4个实例
-                        filtered_occurrences = filtered_occurrences[:4]
+                        # 只保留前4个实例（或者更多，如果用户删除了很多实例）
+                        # 为了用户体验，我们可以限制显示的数量，但要确保有足够的实例
+                        final_filtered_occurrences = filtered_occurrences[:4]
                         
                         # Add all non-deleted occurrences as individual todos
-                        for i, occurrence in enumerate(filtered_occurrences):
+                        for i, occurrence in enumerate(final_filtered_occurrences):
                             # Create a unique ID for each occurrence
                             # 使用日期字符串生成唯一ID，避免索引变化导致的ID冲突
                             # 将日期转换为数字格式作为ID的一部分
@@ -266,7 +234,8 @@ class RoutesManager:
                         
                         # Generate all occurrences to find which one we're toggling
                         from todolist.utils import generate_all_occurrences, calculate_next_occurrence
-                        all_occurrences = generate_all_occurrences(deadline, recurrence_type, recurrence_interval, recurrence_days)
+                        from datetime import datetime
+                        all_occurrences = generate_all_occurrences(deadline, recurrence_type, recurrence_interval, recurrence_days, limit=50)
                         
                         # Ensure we have enough occurrences
                         if all_occurrences:
@@ -283,7 +252,6 @@ class RoutesManager:
                             matching_occurrence = None
                             for occurrence in all_occurrences:
                                 # 使用相同的ID生成逻辑来匹配实例
-                                from datetime import datetime
                                 occ_datetime = datetime.strptime(occurrence, '%Y-%m-%d %H:%M:%S')
                                 occ_timestamp = int(occ_datetime.timestamp())
                                 unique_part = occ_timestamp % 1000000
@@ -300,10 +268,12 @@ class RoutesManager:
                                 
                                 if is_completed:
                                     # Remove from completed list (toggle off)
-                                    completed_occurrences.remove(matching_occurrence)
+                                    if matching_occurrence in completed_occurrences:
+                                        completed_occurrences = [occ for occ in completed_occurrences if occ != matching_occurrence]
                                 else:
                                     # Add to completed list (toggle on)
-                                    completed_occurrences.append(matching_occurrence)
+                                    if matching_occurrence not in completed_occurrences:
+                                        completed_occurrences.append(matching_occurrence)
                                 
                                 # Update the original todo with new completed occurrences
                                 update_data = {

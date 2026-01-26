@@ -34,6 +34,9 @@ A simple and elegant TodoList web application built with Flask, featuring SQLite
 - ✅ Maintained page scroll position after operations
 - ✅ Fixed "Delete Selected" functionality for periodic todos
 - ✅ Fixed "Delete All" functionality for periodic todos
+- ✅ Enhanced periodic task deletion with improved state synchronization
+- ✅ Implemented dynamic instance generation to prevent reset to initial state
+- ✅ Added support for PATH-based ChromeDriver in E2E tests
 
 ## Tech Stack
 

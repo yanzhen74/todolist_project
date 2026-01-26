@@ -145,7 +145,7 @@ def calculate_next_occurrence(deadline, recurrence_type, recurrence_interval, re
         return None
 
 
-def generate_all_occurrences(deadline, recurrence_type, recurrence_interval, recurrence_days, logger=None):
+def generate_all_occurrences(deadline, recurrence_type, recurrence_interval, recurrence_days, logger=None, limit=20):
     """Generate all occurrences of a recurring todo from creation time to next occurrence after now
     
     Args:
@@ -154,6 +154,7 @@ def generate_all_occurrences(deadline, recurrence_type, recurrence_interval, rec
         recurrence_interval: Recurrence interval
         recurrence_days: Weekly specific days in JSON format
         logger: Optional logger for error logging
+        limit: Maximum number of occurrences to generate
     
     Returns:
         List of occurrence times in ISO format string or empty list if calculation fails
@@ -175,20 +176,8 @@ def generate_all_occurrences(deadline, recurrence_type, recurrence_interval, rec
         occurrences = []
         current_occurrence = creation_deadline
         
-        # 减少生成的实例数量，保持列表简洁
-        if recurrence_type == 'yearly':
-            total_instances = 2  # 每年生成2个实例
-        elif recurrence_type == 'monthly':
-            total_instances = 3  # 每月生成3个实例
-        elif recurrence_type == 'weekly':
-            total_instances = 4  # 每周生成4个实例（约1个月）
-        elif recurrence_type == 'daily':
-            total_instances = 7  # 每天生成7个实例（1周）
-        else:
-            total_instances = 3  # 其他类型生成3个实例
-        
         # 生成指定数量的实例
-        for _ in range(total_instances):
+        for _ in range(limit):
             # 确保当前实例是有效的日期时间
             try:
                 # Add to occurrences list

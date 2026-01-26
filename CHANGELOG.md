@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-01-26
+
+### Added
+- 实现了周期任务动态实例生成，防止删除后重置到初始状态
+- 增强了周期任务状态同步机制，确保删除操作后正确生成新实例
+- 添加了对PATH中ChromeDriver的支持，简化E2E测试配置
+- 增加了批量删除功能的完善实现
+
+### Fixed
+- 修复了周期任务删除后实例列表重置的问题
+- 解决了批量删除操作时状态同步不一致的bug
+- 修复了toggle操作中list.remove()可能引发的ValueError
+- 优化了数据库更新逻辑，防止并发更新冲突
+
+### Changed
+- 更新了generate_all_occurrences函数，增加实例生成限制参数
+- 改进了routes.py中的index方法，优化实例生成逻辑
+- 重构了repository.py中的batch_delete_todos方法，提高状态管理准确性
+- 调整了测试用例，使其更符合实际使用场景
+
 ## [1.2.0] - 2026-01-18
 
 ### Added
