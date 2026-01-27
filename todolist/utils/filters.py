@@ -3,10 +3,10 @@ import json
 
 def fromjson_filter(value):
     """JSON string to Python object filter for templates
-    
+
     Args:
         value: JSON string, integer, list, or None
-    
+
     Returns:
         List or empty list if parsing fails
     """

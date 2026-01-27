@@ -3,3 +3,6 @@ gunicorn==21.2.0
 selenium==4.11.2
 pytest==7.4.0
 webdriver-manager==4.0.0
+isort==7.0.0
+black==24.4.2
+flake8==7.0.0

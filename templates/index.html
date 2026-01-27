@@ -663,20 +663,12 @@
                 } else {
                     // 非周期事项，直接删除
                     if (confirm('确定要删除这个待办事项吗？')) {
-                        fetch(`/delete/${todoId}`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/x-www-form-urlencoded',
-                            },
-                        })
-                        .then(response => {
-                            if (response.redirected) {
-                                window.location.href = response.url + '#todo-' + todoId;
-                            } else {
-                                window.location.reload();
-                            }
-                        })
-                        .catch(error => console.error('删除失败:', error));
+                        // 使用表单提交而不是fetch，确保页面正确重定向
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = `/delete/${todoId}`;
+                        document.body.appendChild(form);
+                        form.submit();
                     }
                 }
             });

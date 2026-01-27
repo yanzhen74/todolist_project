@@ -1,6 +1,8 @@
-from flask import render_template, request, redirect, url_for
-from datetime import datetime, timedelta
 import json
+from datetime import datetime
+
+from flask import redirect, render_template, request, url_for
+
 from todolist.db import TodoRepository
 from todolist.utils import calculate_next_occurrence, generate_all_occurrences
 
@@ -33,11 +35,11 @@ class RoutesManager:
             print("Index route: Getting all todos...")
             todos = self.todo_repository.get_all_todos()
             print(f"Index route: Got {len(todos)} todos")
-            
+
             # Process recurring todos to show all occurrences from creation to next occurrence after now
             processed_todos = []
             now = datetime.now()
-            
+
             for todo in todos:
                 # 确保元组包含completed_occurrences字段
                 if len(todo) == 11:
@@ -46,7 +48,7 @@ class RoutesManager:
                     # 兼容旧版本
                     todo_id, title, completed, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, next_occurrence_from_db, deleted_occurrences = todo
                     completed_occurrences = None
-                
+
                 if is_recurring:
                     try:
                         # Parse deleted occurrences from database
@@ -56,7 +58,7 @@ class RoutesManager:
                                 deleted_occurrences_list = json.loads(deleted_occurrences)
                             except (json.JSONDecodeError, TypeError):
                                 deleted_occurrences_list = []
-                        
+
                         # Parse completed occurrences from database
                         completed_occurrences_list = []
                         if completed_occurrences:
@@ -64,24 +66,24 @@ class RoutesManager:
                                 completed_occurrences_list = json.loads(completed_occurrences)
                             except (json.JSONDecodeError, TypeError, ValueError, Exception):
                                 completed_occurrences_list = []
-                        
+
                         # Generate all possible occurrences with a higher limit
                         all_possible_occurrences = []
                         current_deadline = deadline
-                        
+
                         # 生成更多初始实例
                         initial_occurrences = generate_all_occurrences(
                             deadline, recurrence_type, recurrence_interval, recurrence_days,
                             logger=self.app.logger, limit=50  # 增加限制以生成更多实例
                         )
-                        
+
                         # 添加初始实例到所有可能实例列表
                         all_possible_occurrences.extend(initial_occurrences)
-                        
+
                         # 过滤掉已删除的实例，但保留已完成的实例
-                        filtered_occurrences = [occurrence for occurrence in all_possible_occurrences 
+                        filtered_occurrences = [occurrence for occurrence in all_possible_occurrences
                                                 if occurrence not in deleted_occurrences_list]
-                        
+
                         # 确保始终显示至少4个实例，如果不够则继续生成
                         while len(filtered_occurrences) < 4:
                             # 获取当前最后一个实例
@@ -95,17 +97,17 @@ class RoutesManager:
                                 last_occurrence, recurrence_type, recurrence_interval, recurrence_days,
                                 logger=self.app.logger
                             )
-                            
+
                             if next_occurrence and next_occurrence not in all_possible_occurrences and next_occurrence not in deleted_occurrences_list:
                                 all_possible_occurrences.append(next_occurrence)
                                 filtered_occurrences.append(next_occurrence)
                             else:
                                 break
-                        
+
                         # 只保留前4个实例（或者更多，如果用户删除了很多实例）
                         # 为了用户体验，我们可以限制显示的数量，但要确保有足够的实例
                         final_filtered_occurrences = filtered_occurrences[:4]
-                        
+
                         # Add all non-deleted occurrences as individual todos
                         for i, occurrence in enumerate(final_filtered_occurrences):
                             # Create a unique ID for each occurrence
@@ -117,10 +119,10 @@ class RoutesManager:
                             occ_timestamp = int(occ_datetime.timestamp())
                             unique_part = occ_timestamp % 1000000
                             occurrence_id = todo_id * 1000000 + unique_part  # 确保ID唯一且为正数
-                            
+
                             # Check if this occurrence is completed
                             is_occurrence_completed = 1 if occurrence in completed_occurrences_list else 0
-                            
+
                             # Create a new todo instance for each occurrence
                             occurrence_todo = (
                                 occurrence_id,  # Unique ID for this occurrence
@@ -142,7 +144,7 @@ class RoutesManager:
                 else:
                     # Add non-recurring todos normally
                     processed_todos.append(todo)
-            
+
             print(f"Index route: Processed to {len(processed_todos)} todos")
             return render_template('index.html', todos=processed_todos)
         except Exception as e:
@@ -198,10 +200,10 @@ class RoutesManager:
             # Get all todos to check which ones exist in the database
             all_todos = self.todo_repository.get_all_todos()
             existing_ids = [t[0] for t in all_todos]
-            
+
             is_generated_id = todo_id not in existing_ids
             original_id = todo_id // 1000000 if is_generated_id else todo_id
-            
+
             # Get original todo details
             original_todo = self.todo_repository.get_todo(original_id)
 
@@ -214,7 +216,7 @@ class RoutesManager:
                         completed_occurrences_json = None
                     else:
                         id_in_db, title, completed, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, next_occurrence_from_db, deleted_occurrences_json, completed_occurrences_json = original_todo
-                    
+
                     if is_recurring:
                         # Parse deleted occurrences
                         deleted_occurrences = []
@@ -223,7 +225,7 @@ class RoutesManager:
                                 deleted_occurrences = json.loads(deleted_occurrences_json)
                             except (json.JSONDecodeError, TypeError):
                                 deleted_occurrences = []
-                        
+
                         # Parse completed occurrences
                         completed_occurrences = []
                         if completed_occurrences_json:
@@ -231,12 +233,16 @@ class RoutesManager:
                                 completed_occurrences = json.loads(completed_occurrences_json)
                             except (json.JSONDecodeError, TypeError):
                                 completed_occurrences = []
-                        
+
                         # Generate all occurrences to find which one we're toggling
-                        from todolist.utils import generate_all_occurrences, calculate_next_occurrence
                         from datetime import datetime
+
+                        from todolist.utils import (
+                            calculate_next_occurrence,
+                            generate_all_occurrences,
+                        )
                         all_occurrences = generate_all_occurrences(deadline, recurrence_type, recurrence_interval, recurrence_days, limit=50)
-                        
+
                         # Ensure we have enough occurrences
                         if all_occurrences:
                             # Generate more occurrences to find the correct one
@@ -247,7 +253,7 @@ class RoutesManager:
                                     all_occurrences.append(next_occurrence_val)
                                 else:
                                     break
-                            
+
                             # 生成所有实例，然后找出与当前ID匹配的实例
                             matching_occurrence = None
                             for occurrence in all_occurrences:
@@ -256,16 +262,16 @@ class RoutesManager:
                                 occ_timestamp = int(occ_datetime.timestamp())
                                 unique_part = occ_timestamp % 1000000
                                 generated_id = original_id * 1000000 + unique_part
-                                
+
                                 if generated_id == todo_id:
                                     matching_occurrence = occurrence
                                     break
-                            
+
                             if matching_occurrence:
-                                
+
                                 # Check if this occurrence is already completed
                                 is_completed = matching_occurrence in completed_occurrences
-                                
+
                                 if is_completed:
                                     # Remove from completed list (toggle off)
                                     if matching_occurrence in completed_occurrences:
@@ -274,12 +280,12 @@ class RoutesManager:
                                     # Add to completed list (toggle on)
                                     if matching_occurrence not in completed_occurrences:
                                         completed_occurrences.append(matching_occurrence)
-                                
+
                                 # Update the original todo with new completed occurrences
                                 update_data = {
                                     'completed_occurrences': json.dumps(completed_occurrences)
                                 }
-                                
+
                                 # Update the database
                                 self.todo_repository.update_todo(original_id, **update_data)
                 else:
@@ -290,7 +296,7 @@ class RoutesManager:
                         completed_occurrences_json = None
                     else:
                         id_in_db, title, completed, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, next_occurrence_from_db, deleted_occurrences_json, completed_occurrences_json = original_todo
-                    
+
                     new_completed = 1 - completed
                     self.todo_repository.update_todo(original_id, completed=new_completed)
 
@@ -315,7 +321,7 @@ class RoutesManager:
             delete_data = json.loads(todo_ids_json)
             todo_ids = delete_data.get('todo_ids', [])
             delete_all = delete_data.get('delete_all', False)
-            
+
             # Convert to integers
             todo_ids = [int(id) for id in todo_ids]
 
