@@ -219,7 +219,11 @@ You can still override configuration using environment variables, which take pre
    - For periodic todos: Click the checkbox to mark the current occurrence as completed; the todo will automatically update to the next occurrence
 
 4. **Delete a todo item**
-   - Click the "Delete" button next to the todo item
+   - **Regular todos**: Click the "Delete" button next to the todo item to permanently remove it
+   - **Periodic todos**: Click the "Delete" button to open a confirmation dialog with two options:
+     - "仅删除当前" (Delete Current Only): Removes only the current occurrence
+     - "删除全部" (Delete All): Removes the entire periodic series
+   - Both regular and periodic todos support batch deletion via the "Delete Selected" button
 
 5. **Deadline status indicators**
    - 🟢 **Normal**: Deadline is more than 24 hours away
@@ -235,7 +239,7 @@ You can still override configuration using environment variables, which take pre
    - **Select Completed**: Click the "选中已完成" (Select Completed) button to select only completed todo items
    - **Delete Selected**: Click the "删除选中" (Delete Selected) button to delete all selected todo items
    - Batch operations work for both regular and periodic todos
-   - When deleting periodic todos, the entire periodic todo is removed, not just the current occurrence
+   - When deleting periodic todos via batch operations, only the selected occurrences are removed, and new instances will be automatically generated according to the recurrence pattern
 
 ## Testing
 
@@ -286,7 +290,7 @@ The application automatically handles database migrations:
 
 ## Database Schema
 
-```sql
+```
 CREATE TABLE IF NOT EXISTS todos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
