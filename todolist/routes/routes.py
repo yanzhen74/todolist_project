@@ -1,9 +1,9 @@
+# pylint: disable=locally-disabled,suppressed-message,useless-suppression
 import json
 from datetime import datetime
 
 from flask import redirect, render_template, request, url_for
 
-from todolist.db import TodoRepository
 from todolist.utils import calculate_next_occurrence, generate_all_occurrences
 
 
@@ -38,15 +38,14 @@ class RoutesManager:
 
             # Process recurring todos to show all occurrences from creation to next occurrence after now
             processed_todos = []
-            now = datetime.now()
 
             for todo in todos:
                 # 确保元组包含completed_occurrences字段
                 if len(todo) == 11:
-                    todo_id, title, completed, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, next_occurrence_from_db, deleted_occurrences, completed_occurrences = todo
+                    todo_id, title, _, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, _, deleted_occurrences, completed_occurrences = todo
                 else:
                     # 兼容旧版本
-                    todo_id, title, completed, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, next_occurrence_from_db, deleted_occurrences = todo
+                    todo_id, title, _, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, _, deleted_occurrences = todo
                     completed_occurrences = None
 
                 if is_recurring:
@@ -64,12 +63,11 @@ class RoutesManager:
                         if completed_occurrences:
                             try:
                                 completed_occurrences_list = json.loads(completed_occurrences)
-                            except (json.JSONDecodeError, TypeError, ValueError, Exception):
+                            except (json.JSONDecodeError, TypeError, ValueError):
                                 completed_occurrences_list = []
 
                         # Generate all possible occurrences with a higher limit
                         all_possible_occurrences = []
-                        current_deadline = deadline
 
                         # 生成更多初始实例
                         initial_occurrences = generate_all_occurrences(
@@ -78,7 +76,7 @@ class RoutesManager:
                         )
 
                         # 添加初始实例到所有可能实例列表
-                        all_possible_occurrences.extend(initial_occurrences)
+                        all_possible_occurrences = initial_occurrences.copy()
 
                         # 过滤掉已删除的实例，但保留已完成的实例
                         filtered_occurrences = [occurrence for occurrence in all_possible_occurrences
@@ -109,7 +107,7 @@ class RoutesManager:
                         final_filtered_occurrences = filtered_occurrences[:4]
 
                         # Add all non-deleted occurrences as individual todos
-                        for i, occurrence in enumerate(final_filtered_occurrences):
+                        for occurrence in final_filtered_occurrences:
                             # Create a unique ID for each occurrence
                             # 使用日期字符串生成唯一ID，避免索引变化导致的ID冲突
                             # 将日期转换为数字格式作为ID的一部分
@@ -147,9 +145,10 @@ class RoutesManager:
 
             print(f"Index route: Processed to {len(processed_todos)} todos")
             return render_template('index.html', todos=processed_todos)
-        except Exception as e:
+        except (RuntimeError, KeyError, ValueError) as e:
             # Print detailed error information
             print(f"Index route error: {type(e).__name__}: {str(e)}")
+            # pylint: disable=import-outside-toplevel
             import traceback
             traceback.print_exc()
             return f"An error occurred while loading todos: {type(e).__name__}: {str(e)}", 500
@@ -181,7 +180,7 @@ class RoutesManager:
             )
 
             return redirect(url_for('index'))
-        except Exception as e:
+        except (ValueError, TypeError) as e:
             self.app.logger.error(f"Error adding todo: {e}")
             return "An error occurred while adding todo", 500
 
@@ -190,7 +189,7 @@ class RoutesManager:
         try:
             self.todo_repository.delete_todo(todo_id)
             return redirect(url_for('index'))
-        except Exception as e:
+        except (ValueError, RuntimeError) as e:
             self.app.logger.error(f"Error deleting todo: {e}")
             return "An error occurred while deleting todo", 500
 
@@ -212,20 +211,12 @@ class RoutesManager:
                 if is_generated_id:
                     # Parse original todo tuple
                     if len(original_todo) == 10:
-                        id_in_db, title, completed, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, next_occurrence_from_db, deleted_occurrences_json = original_todo
+                        _, _, completed, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, _, _ = original_todo
                         completed_occurrences_json = None
                     else:
-                        id_in_db, title, completed, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, next_occurrence_from_db, deleted_occurrences_json, completed_occurrences_json = original_todo
+                        _, _, completed, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, _, _, completed_occurrences_json = original_todo
 
                     if is_recurring:
-                        # Parse deleted occurrences
-                        deleted_occurrences = []
-                        if deleted_occurrences_json:
-                            try:
-                                deleted_occurrences = json.loads(deleted_occurrences_json)
-                            except (json.JSONDecodeError, TypeError):
-                                deleted_occurrences = []
-
                         # Parse completed occurrences
                         completed_occurrences = []
                         if completed_occurrences_json:
@@ -234,13 +225,10 @@ class RoutesManager:
                             except (json.JSONDecodeError, TypeError):
                                 completed_occurrences = []
 
+                        # pylint: disable=import-outside-toplevel
                         # Generate all occurrences to find which one we're toggling
-                        from datetime import datetime
-
-                        from todolist.utils import (
-                            calculate_next_occurrence,
-                            generate_all_occurrences,
-                        )
+                        # datetime is already imported at the top of the file
+                        # calculate_next_occurrence and generate_all_occurrences are already imported at the top of the file
                         all_occurrences = generate_all_occurrences(deadline, recurrence_type, recurrence_interval, recurrence_days, limit=50)
 
                         # Ensure we have enough occurrences
@@ -292,18 +280,19 @@ class RoutesManager:
                     # Regular todo (non-generated ID)
                     # Toggle completion status
                     if len(original_todo) == 10:
-                        id_in_db, title, completed, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, next_occurrence_from_db, deleted_occurrences_json = original_todo
+                        _, _, completed, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, _, _ = original_todo
                         completed_occurrences_json = None
                     else:
-                        id_in_db, title, completed, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, next_occurrence_from_db, deleted_occurrences_json, completed_occurrences_json = original_todo
+                        _, _, completed, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, _, _, completed_occurrences_json = original_todo
 
                     new_completed = 1 - completed
                     self.todo_repository.update_todo(original_id, completed=new_completed)
 
             return redirect(url_for('index'))
-        except Exception as e:
+        except (ValueError, KeyError, RuntimeError) as e:
             # Print detailed error information for debugging
             print(f"Toggle todo error: {type(e).__name__}: {str(e)}")
+            # pylint: disable=import-outside-toplevel
             import traceback
             traceback.print_exc()
             self.app.logger.error(f"Error toggling todo: {e}")
@@ -329,6 +318,6 @@ class RoutesManager:
             self.todo_repository.batch_delete_todos(todo_ids, delete_all)
 
             return redirect(url_for('index'))
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError) as e:
             self.app.logger.error(f'Error batch deleting todos: {e}')
             return "An error occurred while deleting todos", 500

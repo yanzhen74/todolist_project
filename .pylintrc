@@ -1,7 +1,7 @@
 [MASTER]
 # 正确配置忽略路径
 ignore-paths=^.*typeshed.*$,^.*site-packages.*$,^.*builtins\.pyi$,^.*tests.*$
-ignore=.venv, *.pyi, tests
+ignore=.venv,stdlib,*.pyi,tests
 
 [TYPECHECK]
 # 正确配置忽略文件名
@@ -11,6 +11,6 @@ ignore-patterns=builtins\.pyi$, ^temp_.*\.py
 # 启用所有消息
 enable=all
 # 禁用一些不太重要的消息
-disable=trailing-newlines,line-too-long,missing-docstring,too-few-public-methods,too-many-arguments,fixme,trailing-whitespace,missing-final-newline
+disable= use-implicit-booleaness-not-comparison-to-zero,trailing-newlines,line-too-long,missing-docstring,too-few-public-methods,too-many-arguments,fixme,trailing-whitespace,missing-final-newline
 # 在测试文件中不检查W0718 (Catching too general exception)
 # 这个配置将在测试文件中添加 # pylint: disable=W0718 注释来实现

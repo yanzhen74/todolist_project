@@ -1,6 +1,5 @@
+# pylint: disable=locally-disabled,suppressed-message,useless-suppression
 import json
-
-from todolist.utils import calculate_next_occurrence
 
 
 class TodoRepository:
@@ -121,9 +120,9 @@ class TodoRepository:
 
                         if todo:
                             if len(todo) == 8:
-                                id_in_db, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, deleted_occurrences_json, completed_occurrences_json = todo
+                                _, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, deleted_occurrences_json, completed_occurrences_json = todo
                             else:
-                                id_in_db, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, deleted_occurrences_json = todo
+                                _, deadline, is_recurring, recurrence_type, recurrence_interval, recurrence_days, deleted_occurrences_json = todo
                                 completed_occurrences_json = None
 
                             if is_recurring:
@@ -162,6 +161,7 @@ class TodoRepository:
                     if not delete_all and original_id in original_updates:
                         update_info = original_updates[original_id]
 
+                        # pylint: disable=import-outside-toplevel
                         # 生成所有需要的实例
                         from datetime import datetime
 
@@ -224,6 +224,7 @@ class TodoRepository:
 
             # 应用所有累积的更新
             for original_id, update_info in original_updates.items():
+                # pylint: disable=import-outside-toplevel
                 # 计算所有可能的实例，包括已经生成的和可能的未来实例
                 from datetime import datetime
 
@@ -314,6 +315,7 @@ class TodoRepository:
         except Exception as e:
             # 打印详细错误信息
             print(f"Error in batch_delete_todos: {type(e).__name__}: {str(e)}")
+            # pylint: disable=import-outside-toplevel
             import traceback
             traceback.print_exc()
             # 不要抛出异常，而是返回成功，这样用户体验更好

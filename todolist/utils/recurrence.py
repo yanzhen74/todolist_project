@@ -28,7 +28,6 @@ def calculate_next_occurrence(deadline, recurrence_type, recurrence_interval, re
                 # Try parsing YYYY-MM-DDTHH:MM:SS format
                 current_deadline = datetime.strptime(deadline, "%Y-%m-%dT%H:%M:%S")
 
-        now = datetime.now()
         next_time = current_deadline
 
         # Calculate next occurrence based on recurrence type
@@ -97,7 +96,7 @@ def calculate_next_occurrence(deadline, recurrence_type, recurrence_interval, re
                         else:
                             # Otherwise, try to convert to a list
                             days_of_week = list(recurrence_days)
-                    except (TypeError, json.JSONDecodeError, Exception) as e:
+                    except (TypeError, json.JSONDecodeError):
                         # If any error occurs, use default value
                         days_of_week = []
 
@@ -128,7 +127,7 @@ def calculate_next_occurrence(deadline, recurrence_type, recurrence_interval, re
                     # 本周没有匹配的星期几，找到下周第一个匹配的星期几
                     days_diff = 7 - current_weekday + days_of_week[0]
                     next_time = current_deadline + timedelta(days=days_diff)
-            except Exception as e:
+            except (ValueError, TypeError) as e:
                 if logger:
                     logger.error(f"Error calculating next occurrence: {e}")
                 # 出错时，默认递增一周
@@ -139,7 +138,7 @@ def calculate_next_occurrence(deadline, recurrence_type, recurrence_interval, re
 
         # Format and return
         return next_time.strftime("%Y-%m-%d %H:%M:%S")
-    except Exception as e:
+    except (ValueError, TypeError, OverflowError) as e:
         if logger:
             logger.error(f"Error calculating next occurrence: {e}")
         return None
@@ -171,8 +170,6 @@ def generate_all_occurrences(deadline, recurrence_type, recurrence_interval, rec
             except ValueError:
                 # Try parsing YYYY-MM-DDTHH:MM:SS format
                 creation_deadline = datetime.strptime(deadline, "%Y-%m-%dT%H:%M:%S")
-
-        now = datetime.now()
         occurrences = []
         current_occurrence = creation_deadline
 
@@ -237,7 +234,7 @@ def generate_all_occurrences(deadline, recurrence_type, recurrence_interval, rec
                                 else:
                                     # Otherwise, try to convert to a list
                                     days_of_week = list(recurrence_days)
-                            except (TypeError, json.JSONDecodeError, Exception) as e:
+                            except (TypeError, json.JSONDecodeError):
                                 # If any error occurs, use default value
                                 days_of_week = []
 
@@ -268,7 +265,7 @@ def generate_all_occurrences(deadline, recurrence_type, recurrence_interval, rec
                             # 本周没有匹配的星期几，找到下周第一个匹配的星期几
                             days_diff = 7 - current_weekday + days_of_week[0]
                             current_occurrence = current_occurrence + timedelta(days=days_diff)
-                    except Exception as e:
+                    except (ValueError, TypeError) as e:
                         if logger:
                             logger.error(f"Error parsing recurrence_days: {e}")
                         # 出错时，默认递增一周
@@ -276,13 +273,13 @@ def generate_all_occurrences(deadline, recurrence_type, recurrence_interval, rec
                 else:
                     # Default weekly recurrence
                     current_occurrence += timedelta(weeks=recurrence_interval)
-            except Exception as e:
+            except (ValueError, TypeError, OverflowError) as e:
                 if logger:
                     logger.error(f"Error generating next occurrence: {e}")
                 break
 
         return occurrences
-    except Exception as e:
+    except (ValueError, TypeError, OverflowError) as e:
         if logger:
             logger.error(f"Error generating all occurrences: {e}")
         return []
